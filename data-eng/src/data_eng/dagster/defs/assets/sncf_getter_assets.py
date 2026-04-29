@@ -4,7 +4,10 @@ import os
 from datetime import datetime
 
 from data_eng.utils.s3_connector import connect_to_s3, send_file_to_s3
-from data_eng.sncf_getter import get_sncf_theoretical_train_data
+from data_eng.sncf_getter import (
+    get_sncf_theoretical_train_data,
+    get_sncf_trip_update_train_data,
+)
 
 
 @dg.asset
@@ -43,3 +46,29 @@ def sncf_theoretical_data(context: dg.AssetExecutionContext):
             object=file,
             s3_filepath=f"raw/gtfs_theoretical_data/{date}/{filename}",
         )
+
+
+@dg.asset
+def sncf_continue_data(context: dg.AssetExecutionContext):
+    load_dotenv()
+    os.environ["AWS_ENDPOINT_URL"] = "http://localhost:9000"
+    os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("MINIO_ACCESS_KEY")
+    os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("MINIO_SECRET_ACCESS_KEY")
+
+    now = datetime.now()
+
+    sncf_trip_update_data = get_sncf_trip_update_train_data()
+
+    s3_client = connect_to_s3(
+        endpoint_url="http://localhost:9000",
+        access_key_id=os.getenv("MINIO_ACCESS_KEY"),
+        secret_access_key=os.getenv("MINIO_SECRET_ACCESS_KEY"),
+        region_name="eu-west-1",
+    )
+
+    send_file_to_s3(
+        s3_client,
+        bucket="sncf-bucket",
+        object=sncf_trip_update_data,
+        s3_filepath=f"raw/gtfs_continue_data/sncf_trip_update_{now}.pb",
+    )

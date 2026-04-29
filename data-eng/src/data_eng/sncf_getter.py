@@ -23,9 +23,9 @@ def get_sncf_theoretical_train_data():
     }
 
 
-def get_sncf_continue_train_data():
-    sncf_continue_train_url = (
+def get_sncf_trip_update_train_data():
+    sncf_trip_update_train_url = (
         "https://proxy.transport.data.gouv.fr/resource/sncf-gtfs-rt-trip-updates"
     )
-    sncf_continue_train_data = requests.get(sncf_continue_train_url)
-    return sncf_continue_train_data
+    sncf_trip_update_train_data = requests.get(sncf_trip_update_train_url)
+    return sncf_trip_update_train_data.content
