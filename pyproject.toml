@@ -13,7 +13,10 @@ dependencies = [
     "gtfs-kit>=12.0.3",
     "gtfs-realtime-bindings>=2.0.0",
     "minio>=7.2.20",
+    "numpy>=2.4.4",
+    "polars>=1.40.1",
     "pre-commit>=4.6.0",
+    "protobuf-decoder>=0.4.0",
     "ruff>=0.15.12",
 ]
 
