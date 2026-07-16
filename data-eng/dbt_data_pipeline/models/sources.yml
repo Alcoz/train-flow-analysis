@@ -1,0 +1,9 @@
+version: 1
+
+sources:
+  - name: silver
+    meta:
+      external_location: "data/silver/theory/trips.parquet"
+    tables:
+      - name: trips
+

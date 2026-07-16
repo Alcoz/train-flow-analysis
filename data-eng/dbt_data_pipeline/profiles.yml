@@ -1,0 +1,6 @@
+sncf_data_analysis:
+  target: dev
+  outputs: 
+    dev:
+      type: duckdb
+      path: warehouse/sncf_data_analysis.duckdb
