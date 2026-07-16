@@ -8,8 +8,8 @@ from data_eng.sncf_transformer import (
     transform_sncf_trip_updates_data,
 )
 
-THEORY_DATA_FOLDER = "data/theory/"
-CONTINUE_DATA_FOLDER = "data/continue/"
+THEORY_DATA_FOLDER = "data/{layer}/theory/"
+CONTINUE_DATA_FOLDER = "data/{layer}/continue/"
 
 ###############################
 #### Bronze layer
@@ -19,13 +19,15 @@ CONTINUE_DATA_FOLDER = "data/continue/"
 sncf_theoretical_data = get_sncf_theoretical_train_data()
 
 for filename, file in sncf_theoretical_data["files"].items():
-    with open(THEORY_DATA_FOLDER + "bronze/" + filename, "wb") as fw:
+    with open(THEORY_DATA_FOLDER.format(layer="bronze") + filename, "wb") as fw:
         fw.write(file)
 
 ### Continuous data
 sncf_trip_update_data = get_sncf_trip_update_train_data()
 
-with open(CONTINUE_DATA_FOLDER + "bronze/" + "sncf_trip_update.pb", "wb") as fw:
+with open(
+    CONTINUE_DATA_FOLDER.format(layer="bronze") + "sncf_trip_update.pb", "wb"
+) as fw:
     fw.write(sncf_trip_update_data)
 
 
@@ -35,13 +37,13 @@ with open(CONTINUE_DATA_FOLDER + "bronze/" + "sncf_trip_update.pb", "wb") as fw:
 
 ### Theoretical data
 transform_sncf_theoretical_train_data(
-    input_folder_path=THEORY_DATA_FOLDER + "bronze/",
-    output_folder_path=THEORY_DATA_FOLDER + "silver/",
+    input_folder_path=THEORY_DATA_FOLDER.format(layer="bronze"),
+    output_folder_path=THEORY_DATA_FOLDER.format(layer="silver"),
 )
 
 transform_sncf_trip_updates_data(
-    trip_updates_input_path=CONTINUE_DATA_FOLDER + "bronze/" + "sncf_trip_update.pb",
-    trip_updates_output_path=CONTINUE_DATA_FOLDER
-    + "silver/"
+    trip_updates_input_path=CONTINUE_DATA_FOLDER.format(layer="bronze")
+    + "sncf_trip_update.pb",
+    trip_updates_output_path=CONTINUE_DATA_FOLDER.format(layer="silver")
     + "sncf_trip_update.parquet",
 )

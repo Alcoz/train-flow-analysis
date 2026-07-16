@@ -104,18 +104,18 @@ def transform_sncf_trip_updates_data(
         protobuf_file_path=trip_updates_input_path
     )
 
-    trips_updates = (
-        trips_updates.select("trip_id", "departure_delay", "arrival_delay")
-        .group_by(
-            "trip_id",
-        )
-        .agg(
-            [
-                pl.col("departure_delay").max().alias("max_departure_delay"),
-                pl.col("arrival_delay").max().alias("max_arrival_delay"),
-            ]
-        )
-    )
+    # trips_updates = (
+    #     trips_updates.select("trip_id", "departure_delay", "arrival_delay")
+    #     .group_by(
+    #         "trip_id",
+    #     )
+    #     .agg(
+    #         [
+    #             pl.col("departure_delay").max().alias("max_departure_delay"),
+    #             pl.col("arrival_delay").max().alias("max_arrival_delay"),
+    #         ]
+    #     )
+    # )
 
     trips_updates.write_parquet(trip_updates_output_path)
 
