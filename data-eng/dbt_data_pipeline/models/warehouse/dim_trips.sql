@@ -1,4 +1,5 @@
 SELECT
+    trip_id,
     route_id,
-    trip_id
+    direction_id
 FROM {{ source("silver", "trips") }}

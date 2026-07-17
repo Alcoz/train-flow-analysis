@@ -1,0 +1,13 @@
+models:
+  - name: dim_routes
+    columns:
+      - name: route_id
+        tests:
+          - unique
+          - not_null
+      - name: terminal_station_1
+        tests:
+          - not_null
+      - name: terminal_station_2
+        tests:
+          - not_null

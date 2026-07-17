@@ -2,8 +2,15 @@ version: 1
 
 sources:
   - name: silver
-    meta:
-      external_location: "data/silver/theory/trips.parquet"
     tables:
       - name: trips
+        meta:
+          external_location: "data/silver/theory/trips.parquet"
 
+      - name: routes
+        meta:
+          external_location: "data/silver/theory/routes.parquet"
+      
+      - name: trip_updates
+        meta:
+          external_location: "data/silver/continue/sncf_trip_update.parquet"
