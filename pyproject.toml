@@ -10,6 +10,7 @@ dependencies = [
     "dagster-dg-cli>=1.13.1",
     "dagster-webserver>=1.13.1",
     "data-eng",
+    "data-viz-platform",
     "dbt-core>=1.11.11",
     "dbt-duckdb>=1.10.1",
     "duckdb>=1.5.4",
@@ -21,15 +22,18 @@ dependencies = [
     "pre-commit>=4.6.0",
     "protobuf-decoder>=0.4.0",
     "ruff>=0.15.12",
+    "streamlit>=1.60.0",
 ]
 
 [tool.uv.workspace]
 members = [
     "data-eng",
+    "data-viz-platform",
 ]
 
 [tool.uv.sources]
 data-eng = { workspace = true }
+data-viz-platform = { workspace = true }
 
 [tool.dg]
 directory_type = "project"

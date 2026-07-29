@@ -15,3 +15,6 @@ dbt-build:
 
 duckui:
 	duckdb -ui warehouse/sncf_data_analysis.duckdb
+
+data-pipeline:
+	sh scripts/data-pipeline.sh
