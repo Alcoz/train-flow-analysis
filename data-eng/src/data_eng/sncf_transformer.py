@@ -1,15 +1,9 @@
-import os
 import numpy as np
 import polars as pl
 from google.transit import gtfs_realtime_pb2
 
-from data_eng.utils.converter import txt_to_parquet_polars
 
-
-def sncf_trip_updates_protobuf_to_sheets(protobuf_file_path: str):
-    with open(protobuf_file_path, "rb") as tu_file:
-        protobuf_sncf_data = tu_file.read()
-
+def sncf_trip_updates_protobuf_to_sheets(protobuf_sncf_data):
     feed = gtfs_realtime_pb2.FeedMessage()
     feed.ParseFromString(protobuf_sncf_data)
 
@@ -83,18 +77,6 @@ def sncf_trip_updates_protobuf_to_sheets(protobuf_file_path: str):
     )
 
     return trip_update_df
-
-
-def transform_sncf_theoretical_train_data(
-    input_folder_path: str, output_folder_path: str
-):
-    for input_filename in os.listdir(input_folder_path):
-        txt_to_parquet_polars(
-            input_folder_path + "/" + input_filename,
-            output_folder_path + "/" + input_filename.split(".")[0] + ".parquet",
-        )
-
-    return None
 
 
 def transform_sncf_trip_updates_data(

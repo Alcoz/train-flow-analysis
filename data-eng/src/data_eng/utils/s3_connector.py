@@ -30,7 +30,7 @@ def send_local_file_to_s3(
         s3_client.put_object(Bucket=bucket, Body=f, Key=s3_filepath, ACL="public-read")
 
 
-def send_file_to_s3(
+def send_object_to_s3(
     s3_client: boto3.client,
     bucket: str,
     object,
@@ -38,3 +38,27 @@ def send_file_to_s3(
 ):
     """Dépose un fichier sur un bucket S3"""
     s3_client.put_object(Bucket=bucket, Body=object, Key=s3_filepath, ACL="public-read")
+
+
+def get_object_from_s3(
+    s3_client: boto3.client,
+    bucket: str,
+    filepath: str,
+):
+    """Récupère un fichier depuis un bucket S3"""
+    s3_object = s3_client.get_object(Bucket=bucket, Key=filepath)
+
+    body = s3_object["Body"].read()
+
+    return body
+
+
+def get_folder_content_from_s3(s3_client: boto3.client, bucket_name: str, folder: str):
+    folder_list = [
+        file["Key"]
+        for file in s3_client.list_objects_v2(Bucket=bucket_name, Prefix=folder)[
+            "Contents"
+        ]
+    ]
+
+    return folder_list
