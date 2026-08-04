@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from io import BytesIO
-
+import datetime
 import polars as pl
 
 from data_eng.utils.s3_connector import (
@@ -22,6 +22,8 @@ from data_eng.sncf_transformer import (
 
 THEORY_DATA_FOLDER = "data/{layer}/theory/"
 CONTINUE_DATA_FOLDER = "data/{layer}/continue/"
+
+today = datetime.date.today()
 
 load_dotenv(".env")
 
@@ -46,7 +48,9 @@ for filename, file in sncf_theoretical_data["files"].items():
         s3_client=s3_connector,
         bucket=s3_bucket_name,
         object=file,
-        s3_filepath=THEORY_DATA_FOLDER.format(layer="bronze") + filename,
+        s3_filepath=THEORY_DATA_FOLDER.format(layer="bronze")
+        + f"date={today}/"
+        + filename,
     )
 
 ### Continuous data
@@ -56,7 +60,9 @@ send_object_to_s3(
     s3_client=s3_connector,
     bucket=s3_bucket_name,
     object=sncf_trip_update_data,
-    s3_filepath=CONTINUE_DATA_FOLDER.format(layer="bronze") + "sncf_trip_update.pb",
+    s3_filepath=CONTINUE_DATA_FOLDER.format(layer="bronze")
+    + f"date={today}/"
+    + "sncf_trip_update.pb",
 )
 
 ###############################
@@ -66,7 +72,7 @@ send_object_to_s3(
 for filename in get_folder_content_from_s3(
     s3_client=s3_connector,
     bucket_name=s3_bucket_name,
-    folder=THEORY_DATA_FOLDER.format(layer="bronze"),
+    folder=THEORY_DATA_FOLDER.format(layer="bronze") + f"date={today}/",
 ):
     file = get_object_from_s3(
         s3_client=s3_connector, bucket=s3_bucket_name, filepath=filename
@@ -98,7 +104,9 @@ for filename in get_folder_content_from_s3(
 protobuf_sncf_data = get_object_from_s3(
     s3_client=s3_connector,
     bucket=s3_bucket_name,
-    filepath=CONTINUE_DATA_FOLDER.format(layer="bronze") + "sncf_trip_update.pb",
+    filepath=CONTINUE_DATA_FOLDER.format(layer="bronze")
+    + f"date={today}/"
+    + "sncf_trip_update.pb",
 )
 
 trips_updates_df = sncf_trip_updates_protobuf_to_sheets(
@@ -114,5 +122,6 @@ parquet_buffer.seek(0)
 s3_connector.upload_fileobj(
     parquet_buffer,
     s3_bucket_name,
-    CONTINUE_DATA_FOLDER.format(layer="silver") + "sncf_trip_update.parquet",
+    CONTINUE_DATA_FOLDER.format(layer="silver", date=today)
+    + "sncf_trip_update.parquet",
 )

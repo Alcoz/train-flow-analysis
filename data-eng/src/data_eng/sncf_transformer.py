@@ -7,15 +7,14 @@ def sncf_trip_updates_protobuf_to_sheets(protobuf_sncf_data):
     feed = gtfs_realtime_pb2.FeedMessage()
     feed.ParseFromString(protobuf_sncf_data)
 
+    recuperation_date = feed.header.timestamp
+
     trip_list = []
-    trip_ids = []
 
     for entity in feed.entity:
-        trip_dict = {"trip_id": entity.id}
-        trip_ids.append(entity.id)
+        trip_dict = {"trip_id": entity.id, "recuperation_date": recuperation_date}
 
         if entity.HasField("trip_update"):
-            trip = entity.trip_update.trip
             stops = []
 
             for stop_time in entity.trip_update.stop_time_update:
@@ -48,6 +47,7 @@ def sncf_trip_updates_protobuf_to_sheets(protobuf_sncf_data):
                 stop["departure"]["delay"],
                 stop["arrival"]["time"],
                 stop["arrival"]["delay"],
+                trip["recuperation_date"],
             ]
 
             stop_updates.append(stop_update)
@@ -64,6 +64,7 @@ def sncf_trip_updates_protobuf_to_sheets(protobuf_sncf_data):
                 ("departure_delay", pl.Int64),
                 ("arrival_time", pl.Int64),
                 ("arrival_delay", pl.Int64),
+                ("recuperation_date", pl.Int64),
             ],
         )
         .with_columns(
@@ -73,6 +74,7 @@ def sncf_trip_updates_protobuf_to_sheets(protobuf_sncf_data):
         .with_columns(
             pl.from_epoch("departure_time", time_unit="s"),
             pl.from_epoch("arrival_time", time_unit="s"),
+            pl.from_epoch("recuperation_date", time_unit="s"),
         )
     )
 
