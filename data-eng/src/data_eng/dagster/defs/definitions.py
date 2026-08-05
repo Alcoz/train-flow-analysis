@@ -10,5 +10,8 @@ defs = Definitions(
         sncf_getter_jobs.sncf_theoretical_job,
         sncf_getter_jobs.sncf_trip_updates_job,
     ],
-    schedules=[sncf_getter_schedules.trip_update_schedule],
+    schedules=[
+        sncf_getter_schedules.theoretical_data_schedule,
+        sncf_getter_schedules.trip_update_schedule,
+    ],
 )
