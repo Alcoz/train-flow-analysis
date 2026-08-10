@@ -211,3 +211,5 @@ __marimo__/
 data/
 notebooks/
 warehouse/
+
+.DS_Store
