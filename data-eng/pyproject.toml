@@ -7,8 +7,26 @@ authors = [
     { name = "Baptiste Darnala", email = "darnala.b@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "boto3>=1.42.97",
+    "dbt-core>=1.11.11",
+    "dbt-duckdb>=1.10.1",
+    "duckdb>=1.5.4",
+    "gtfs-kit>=12.0.3",
+    "gtfs-realtime-bindings>=2.0.0",
+    "minio>=7.2.20",
+    "numpy>=2.4.4",
+    "polars>=1.40.1",
+    "protobuf-decoder>=0.4.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.10.12,<0.11.0"]
 build-backend = "uv_build"
+
+[tool.dg]
+directory_type = "project"
+
+[tool.dg.project]
+root_module = "data_eng.dagster"
+code_location_target_module = "data_eng.dagster.defs.definitions"

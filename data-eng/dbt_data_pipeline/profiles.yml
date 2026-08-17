@@ -3,15 +3,16 @@ sncf_data_analysis:
   outputs: 
     dev:
       type: duckdb
-      path: "warehouse/sncf_data_analysis.duckdb"
+      path: "{{ env_var('DUCKDB_PATH') }}"
 
       extensions:
         - httpfs
 
       settings:
-        s3_endpoint: "127.0.0.1:9000"
+        s3_endpoint: "{{ env_var('S3_API') | replace('http://', '') | replace('https://', '') }}"
         s3_url_style: "path"
         s3_use_ssl: false
-        s3_region: "eu-west-1"
-        s3_access_key_id: "{{ env_var('MINIO_ACCESS_KEY') }}"
-        s3_secret_access_key: "{{ env_var('MINIO_SECRET_ACCESS_KEY') }}"
+        s3_region: "{{ env_var('REGION_NAME') }}"
+        s3_access_key_id: "{{ env_var('S3_ACCESS_KEY') }}"
+        s3_secret_access_key: "{{ env_var('S3_SECRET_ACCESS_KEY') }}"
+      external_root: "s3://sncf-bucket/data/gold"

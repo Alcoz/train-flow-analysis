@@ -25,7 +25,7 @@ clean-targets:         # directories to be removed by `dbt clean`
 models:
   dbt_data_pipeline:
     warehouse:
-      +materialized: table
+      +materialized: external
     
     analytics:
-      +materialized: view
+      +materialized: external

@@ -1,4 +1,3 @@
-# src/mon_projet/defs/partitions.py
 import dagster as dg
 
 daily_partitions = dg.DailyPartitionsDefinition(

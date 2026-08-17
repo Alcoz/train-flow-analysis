@@ -5,14 +5,14 @@ from data_eng.sncf_getter import (
     get_sncf_theoretical_train_data,
     get_sncf_trip_update_train_data,
 )
-from data_eng.dagster.defs.partitions import daily_partitions
-from data_eng.dagster.defs.resources import S3_Resource
+from orchestration_dagster.defs.partitions import daily_partitions
+from orchestration_dagster.defs.resources import S3_Resource
 
 
 @dg.asset(partitions_def=daily_partitions)
 def sncf_bronze_theoretical_data(
     context: dg.AssetExecutionContext, s3_resource: S3_Resource
-):
+) -> dg.MaterializeResult:
     THEORY_DATA_FOLDER = "data/{layer}/theory/"
 
     today = context.partition_key

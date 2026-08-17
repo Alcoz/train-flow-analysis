@@ -1,3 +1,5 @@
+{{ config(tags=["daily"]) }}
+
 SELECT
     trip_id,
     route_id,

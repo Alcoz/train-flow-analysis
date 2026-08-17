@@ -1,3 +1,5 @@
+{{ config(tags=["daily"]) }}
+
 SELECT
     route_id,
     route_short_name,

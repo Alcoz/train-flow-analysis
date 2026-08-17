@@ -1,3 +1,5 @@
+{{ config(tags=["daily"]) }}
+
 SELECT 
     route_id,
     AVG(trip_delay) as mean_delay,

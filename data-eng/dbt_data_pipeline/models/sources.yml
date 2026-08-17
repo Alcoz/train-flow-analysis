@@ -6,11 +6,17 @@ sources:
       - name: trips
         meta:
           external_location: "s3://sncf-bucket/data/silver/theory/trips.parquet"
+          dagster:
+            asset_key: ["sncf_silver_theoretical_data", "trips"]
 
       - name: routes
         meta:
           external_location: "s3://sncf-bucket/data/silver/theory/routes.parquet"
+          dagster:
+            asset_key: ["sncf_silver_theoretical_data", "routes"]
       
       - name: trip_updates
         meta:
-          external_location: "s3://sncf-bucket/data/silver/continue/sncf_trip_update.parquet"
+          external_location: "s3://sncf-bucket/data/silver/continue/date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/sncf_trip_update.parquet"
+          dagster:
+            asset_key: ["sncf_silver_continue_data"]

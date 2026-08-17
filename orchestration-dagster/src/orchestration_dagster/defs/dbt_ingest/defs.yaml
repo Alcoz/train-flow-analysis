@@ -1,0 +1,16 @@
+type: dagster_dbt.DbtProjectComponent
+
+template_vars_module: .template_vars
+attributes:
+  project: '{{ context.project_root }}/../data-eng/dbt_data_pipeline'
+  select: "tag:daily"
+  cli_args:
+    - build
+    - --vars:
+        today: "{{ partition_key }}"
+
+post_processing:
+  assets:
+    - target: "*"
+      attributes:
+        partitions_def: "{{ daily_partitions }}"
