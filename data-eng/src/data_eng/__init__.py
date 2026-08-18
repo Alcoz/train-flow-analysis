@@ -1,2 +1,1 @@
-def hello() -> str:
-    return "Hello from data-eng!"
+"""Set of tools to facilitate data exchange with external system."""

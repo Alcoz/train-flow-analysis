@@ -1,9 +1,18 @@
-import requests
-import zipfile
+"""Interface to extract data from sncf endpoint."""
+
 import io
+import zipfile
+
+import requests
 
 
 def get_sncf_theoretical_train_data():
+    """Getter of the theoretical data of sncf relative to trains, stations or trips descriptions.
+
+    Returns:
+        dict: dictionary containing the zipfile and zipfile content extracted. Files described with gtfs format.
+
+    """
     sncf_theoretical_train_url = "https://eu.ftp.opendatasoft.com/sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip"
     sncf_theoretical_train_data_zip_bytes = requests.get(sncf_theoretical_train_url)
 
@@ -24,6 +33,12 @@ def get_sncf_theoretical_train_data():
 
 
 def get_sncf_trip_update_train_data():
+    """Getter of the trip updates of the sncf.
+
+    Returns:
+        (bytes | Any): trip updates SNCF data in GTFS-RT.
+
+    """
     sncf_trip_update_train_url = (
         "https://proxy.transport.data.gouv.fr/resource/sncf-gtfs-rt-trip-updates"
     )

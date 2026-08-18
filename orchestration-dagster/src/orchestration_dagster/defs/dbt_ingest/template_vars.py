@@ -7,4 +7,5 @@ from orchestration_dagster.defs.partitions import (
 
 @dg.template_var
 def daily_partitions() -> dg.DailyPartitionsDefinition:
+    """Return the daily partitions definition shared across SNCF assets."""
     return _daily_partitions

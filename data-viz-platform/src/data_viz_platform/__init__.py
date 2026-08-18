@@ -1,8 +1,16 @@
-import streamlit as st
+"""Front library of the sncf data platform."""
+
 import duckdb
+import streamlit as st
 
 
 def run_data_viz_plateform(warehouse_file: str):
+    """Construct the Streamlit data platform of the SNCF.
+
+    Args:
+        warehouse_file (str): warehouse duckdb file
+
+    """
     train_dw = duckdb.connect(warehouse_file)
     delay_table = train_dw.sql(
         query="""

@@ -1,24 +1,22 @@
-import os
-from dotenv import load_dotenv
-from io import BytesIO
 import datetime
+import os
+from io import BytesIO
+
 import polars as pl
-
-from data_eng.utils.s3_connector import (
-    connect_to_s3,
-    send_object_to_s3,
-    get_object_from_s3,
-    get_folder_content_from_s3,
-)
-
 from data_eng.sncf_getter import (
     get_sncf_theoretical_train_data,
     get_sncf_trip_update_train_data,
 )
-
 from data_eng.sncf_transformer import (
     sncf_trip_updates_protobuf_to_sheets,
 )
+from data_eng.utils.s3_connector import (
+    connect_to_s3,
+    get_folder_content_from_s3,
+    get_object_from_s3,
+    send_object_to_s3,
+)
+from dotenv import load_dotenv
 
 THEORY_DATA_FOLDER = "data/{layer}/theory/"
 CONTINUE_DATA_FOLDER = "data/{layer}/continue/"

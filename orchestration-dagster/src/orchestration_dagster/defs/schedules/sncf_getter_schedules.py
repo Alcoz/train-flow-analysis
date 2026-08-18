@@ -1,5 +1,4 @@
 import dagster as dg
-
 from orchestration_dagster.defs.jobs import sncf_getter_jobs
 
 theoretical_data_schedule = dg.build_schedule_from_partitioned_job(

@@ -25,3 +25,38 @@ members = [
 data-eng = { workspace = true }
 data-viz-platform = { workspace = true }
 orchestration-dagster = { workspace = true }
+
+
+[tool.ruff.lint]
+# Règles à activer
+select = [
+    "E",      # Erreurs de style pycodestyle
+    "F",      # Erreurs Pyflakes (variables non utilisées, etc.)
+    "I",      # Tri des imports (isort)
+    "B",      # Bugs potentiels (flake8-bugbear)
+    "UP",     # Modernisation syntaxe (pyupgrade)
+    "SIM",    # Simplifications possibles,
+    "D",      # Doctrings manquantes ou mal formatées
+]
+
+# Règles à ignorer
+ignore = [
+    "E501",   # Ligne trop longue (géré par le formatter)
+    "D203",
+    "D213",
+    "D100", 
+    "D104"
+]
+
+# Règles que --fix peut corriger automatiquement
+fixable = ["ALL"]
+
+[tool.ruff.format]
+# Style des guillemets (comme Black)
+quote-style = "double"
+
+# Indentation (comme Black)
+indent-style = "space"
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["D"]

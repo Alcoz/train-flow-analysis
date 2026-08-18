@@ -1,14 +1,13 @@
-import dagster as dg
 from io import BytesIO
-import polars as pl
 
-from data_eng.utils.s3_connector import get_folder_content_from_s3, get_object_from_s3
+import dagster as dg
+import polars as pl
 from data_eng.sncf_transformer import (
     sncf_trip_updates_protobuf_to_sheets,
 )
+from data_eng.utils.s3_connector import get_folder_content_from_s3, get_object_from_s3
 from orchestration_dagster.defs.partitions import daily_partitions
 from orchestration_dagster.defs.resources import S3_Resource
-
 
 GTFS_TABLES = [
     "trips",
@@ -33,6 +32,24 @@ GTFS_TABLES = [
 def sncf_silver_theoretical_data(
     context: dg.AssetExecutionContext, s3_resource: S3_Resource
 ):
+    """Convert bronze theoretical GTFS files (CSV) into silver Parquet tables.
+
+    Reads each CSV file present in the bronze folder for the current
+    partition (trips, stops, routes, etc.), converts it into a Polars
+    DataFrame, and writes it as Parquet in the silver layer. Files whose
+    name doesn't match a known GTFS table (GTFS_TABLES) are skipped.
+
+    Args:
+    context: Dagster execution context, provides the partition key
+        (date) and the logger.
+    s3_resource: Dagster resource exposing the S3 client and target
+        bucket.
+
+    Yields:
+    One MaterializeResult per GTFS table actually produced, with row
+    count and S3 path as metadata.
+
+    """
     THEORY_DATA_FOLDER = "data/{layer}/theory/"
     today = context.partition_key
     context.log.info(f"Processing date {today}")
@@ -96,6 +113,20 @@ def sncf_silver_theoretical_data(
 def sncf_silver_continue_data(
     context: dg.AssetExecutionContext, s3_resource: S3_Resource
 ):
+    """Convert SNCF real-time trip updates (protobuf) into a silver Parquet table.
+
+    Reads the GTFS-realtime protobuf file stored in bronze for the current
+    partition, converts it into a DataFrame via
+    `sncf_trip_updates_protobuf_to_sheets`, then writes the result as
+    Parquet in the silver layer.
+
+    Args:
+    context: Dagster execution context, provides the partition key
+        (date) and the logger.
+    s3_resource: Dagster resource exposing the S3 client and target
+        bucket.
+
+    """
     CONTINUE_DATA_FOLDER = "data/{layer}/continue/"
 
     today = context.partition_key

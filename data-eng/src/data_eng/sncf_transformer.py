@@ -1,9 +1,20 @@
+"""Transformation functions for SNCF data."""
+
 import numpy as np
 import polars as pl
 from google.transit import gtfs_realtime_pb2
 
 
 def sncf_trip_updates_protobuf_to_sheets(protobuf_sncf_data):
+    """Transform gtfs-rt format of trip updates data in dataframe format.
+
+    Args:
+        protobuf_sncf_data (_type_): trip update sncf data in gtfs-rt format.
+
+    Returns:
+        pl.DataFrame: dataframe containing trip updates data
+
+    """
     feed = gtfs_realtime_pb2.FeedMessage()
     feed.ParseFromString(protobuf_sncf_data)
 
@@ -79,15 +90,3 @@ def sncf_trip_updates_protobuf_to_sheets(protobuf_sncf_data):
     )
 
     return trip_update_df
-
-
-def transform_sncf_trip_updates_data(
-    trip_updates_input_path: str, trip_updates_output_path: str
-):
-    trips_updates = sncf_trip_updates_protobuf_to_sheets(
-        protobuf_file_path=trip_updates_input_path
-    )
-
-    trips_updates.write_parquet(trip_updates_output_path)
-
-    return None
