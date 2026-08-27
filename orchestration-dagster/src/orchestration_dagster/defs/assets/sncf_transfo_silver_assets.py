@@ -70,6 +70,7 @@ def sncf_silver_theoretical_data(
             context.log.warning(f"Fichier inattendu ignoré : {filename}")
             continue
 
+        # Doit couvrir le cas où mon fichier n'existe pas
         file = get_object_from_s3(
             s3_client=s3_client, bucket=s3_bucket_name, filepath=filename
         )

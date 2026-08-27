@@ -34,27 +34,49 @@ def sncf_bronze_theoretical_data(
 
     context.log.info(f"Processing date {today}")
 
-    sncf_theoretical_data = get_sncf_theoretical_train_data()
+    try:
+        sncf_theoretical_data = get_sncf_theoretical_train_data()
+    except Exception as e:
+        context.log.error(f"Error while getting theoretical data : {e}")
+        raise
 
     s3_client = s3_resource.get_client()
     s3_bucket_name = s3_resource.bucket_name
 
-    send_object_to_s3(
-        s3_client,
-        bucket=s3_bucket_name,
-        object=sncf_theoretical_data["zip_file"],
-        s3_filepath=f"raw/{today}/sncf_gtfs.zip",
-    )
+    try:
+        send_object_to_s3(
+            s3_client,
+            bucket=s3_bucket_name,
+            object=sncf_theoretical_data["zip_file"],
+            s3_filepath=f"raw/{today}/sncf_gtfs.zip",
+        )
+    except Exception as e:
+        context.log.error(
+            f"Error while sending raw theoretical file to s3 bucket : {e}"
+        )
+        raise
+
+    context.log.info(f"Raw archive is saved on s3 bucket {s3_bucket_name} successfully")
 
     for filename, file in sncf_theoretical_data["files"].items():
-        send_object_to_s3(
-            s3_client=s3_client,
-            bucket=s3_bucket_name,
-            object=file,
-            s3_filepath=THEORY_DATA_FOLDER.format(layer="bronze")
-            + f"date={today}/"
-            + filename,
-        )
+        try:
+            send_object_to_s3(
+                s3_client=s3_client,
+                bucket=s3_bucket_name,
+                object=file,
+                s3_filepath=THEORY_DATA_FOLDER.format(layer="bronze")
+                + f"date={today}/"
+                + filename,
+            )
+        except Exception as e:
+            context.log.error(
+                f"Error while sending {filename} theoretical file to s3 bucket : {e}"
+            )
+            raise
+
+    context.log.info(
+        f"All theoretical files are saved on s3 bucket {s3_bucket_name} successfully"
+    )
 
 
 @dg.asset(partitions_def=daily_partitions)

@@ -7,7 +7,9 @@ authors = [
     { name = "Baptiste Darnala", email = "darnala.b@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "streamlit>=1.61.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.10.12,<0.11.0"]

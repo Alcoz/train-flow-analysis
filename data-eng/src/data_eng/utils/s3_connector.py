@@ -19,25 +19,20 @@ def connect_to_s3(
         region_name (str): Name of the S3 region (e.g. "eu-west-3").
 
     Returns:
-        boto3.client | None: The created S3 client, or None if the connection fails.
+        boto3.client : The created S3 client
 
     """
-    try:
-        s3_client = boto3.client(
-            "s3",
-            endpoint_url=endpoint_url,
-            aws_access_key_id=access_key_id,
-            aws_secret_access_key=secret_access_key,
-            region_name=region_name,
-        )
-        return s3_client
-    except Exception as e:
-        print(f"Erreur de connexion : {e}")
-        return None
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_access_key,
+        region_name=region_name,
+    )
 
 
 def get_object_from_s3(
-    s3_client: boto3.client,
+    s3_client,
     bucket: str,
     filepath: str,
 ):
@@ -54,13 +49,16 @@ def get_object_from_s3(
     """
     s3_object = s3_client.get_object(Bucket=bucket, Key=filepath)
 
-    body = s3_object["Body"].read()
+    body = s3_object["Body"].read()  # Be careful if object are too big, may need a loop
+
+    if not body:
+        raise ValueError(f"{filepath} in {bucket} is empty")
 
     return body
 
 
 def send_object_to_s3(
-    s3_client: boto3.client,
+    s3_client,
     bucket: str,
     object,
     s3_filepath: str,
@@ -77,7 +75,7 @@ def send_object_to_s3(
         None
 
     """
-    s3_client.put_object(Bucket=bucket, Body=object, Key=s3_filepath, ACL="public-read")
+    s3_client.put_object(Bucket=bucket, Body=object, Key=s3_filepath)
 
 
 def get_folder_content_from_s3(s3_client: boto3.client, bucket_name: str, folder: str):
