@@ -25,13 +25,9 @@ jobs:
         run: |
           uv sync
       
-      - name: Install pytest
-        run: |
-          uv add pytest
-
       - name: Run tests
         run: |
-          pytest -v
+          uv run pytest -v
           echo "✅ All tests passed successfully!"
 
       - name: Test failure notification
