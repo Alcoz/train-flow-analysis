@@ -1,14 +1,16 @@
+from datetime import datetime
+
 import dagster as dg
 from data_eng.sncf_getter import (
     get_sncf_theoretical_train_data,
     get_sncf_trip_update_train_data,
 )
 from data_eng.utils.s3_connector import send_object_to_s3
-from orchestration_dagster.defs.partitions import daily_partitions
 from orchestration_dagster.defs.resources import S3_Resource
+from pytz import timezone
 
 
-@dg.asset(partitions_def=daily_partitions)
+@dg.asset()
 def sncf_bronze_theoretical_data(
     context: dg.AssetExecutionContext, s3_resource: S3_Resource
 ) -> dg.MaterializeResult:
@@ -30,7 +32,7 @@ def sncf_bronze_theoretical_data(
     """
     THEORY_DATA_FOLDER = "data/{layer}/theory/"
 
-    today = context.partition_key
+    today = datetime.now(tz=timezone("Europe/Paris")).strftime("%Y-%m-%d")
 
     context.log.info(f"Processing date {today}")
 
@@ -56,7 +58,9 @@ def sncf_bronze_theoretical_data(
         )
         raise
 
-    context.log.info(f"Raw archive is saved on s3 bucket {s3_bucket_name} successfully")
+    context.log.info(
+        f"Raw archive of {today} is saved on s3 bucket {s3_bucket_name} at raw/{today}/sncf_gtfs.zip successfully"
+    )
 
     for filename, file in sncf_theoretical_data["files"].items():
         try:
@@ -79,7 +83,7 @@ def sncf_bronze_theoretical_data(
     )
 
 
-@dg.asset(partitions_def=daily_partitions)
+@dg.asset()
 def sncf_bronze_continue_data(
     context: dg.AssetExecutionContext, s3_resource: S3_Resource
 ):
@@ -97,19 +101,37 @@ def sncf_bronze_continue_data(
     """
     CONTINUE_DATA_FOLDER = "data/{layer}/continue/"
 
-    today = context.partition_key
+    now = datetime.now(tz=timezone("Europe/Paris"))
+    today = now.strftime("%Y-%m-%d")
+    now_hms = now.strftime("%H-%M-%S")
 
-    sncf_trip_update_data = get_sncf_trip_update_train_data()
+    context.log.info(f"Processing date {now}")
+
+    try:
+        sncf_trip_update_data = get_sncf_trip_update_train_data()
+    except Exception as e:
+        context.log.error(f"Error while getting theoretical data : {e}")
+        raise
 
     s3_client = s3_resource.get_client()
-
     s3_bucket_name = s3_resource.bucket_name
+    s3_filepath = (
+        CONTINUE_DATA_FOLDER.format(layer="bronze") + f"date={today}/" + f"{now_hms}.pb"
+    )
 
-    send_object_to_s3(
-        s3_client=s3_client,
-        bucket=s3_bucket_name,
-        object=sncf_trip_update_data,
-        s3_filepath=CONTINUE_DATA_FOLDER.format(layer="bronze")
-        + f"date={today}/"
-        + "sncf_trip_update.pb",
+    try:
+        send_object_to_s3(
+            s3_client=s3_client,
+            bucket=s3_bucket_name,
+            object=sncf_trip_update_data,
+            s3_filepath=s3_filepath,
+        )
+    except Exception as e:
+        context.log.error(
+            f"Error while sending raw theoretical file to s3 bucket : {e}"
+        )
+        raise
+
+    context.log.info(
+        f"Raw file of {now} is saved on s3 bucket {s3_bucket_name} at {s3_filepath} successfully"
     )
