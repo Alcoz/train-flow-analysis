@@ -1,0 +1,102 @@
+services:
+  dagster_postgresql:
+    image: postgres:11
+    container_name: dagster_postgresql
+    environment:
+      POSTGRES_USER: '${DAGSTER_PG_USERNAME}'
+      POSTGRES_PASSWORD: '${DAGSTER_PG_PASSWORD}'
+      POSTGRES_DB: '${DAGSTER_PG_DB}'
+    networks:
+      - dagster_network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DAGSTER_PG_USERNAME} -d ${DAGSTER_PG_DB}']
+      interval: 10s
+      timeout: 8s
+      retries: 5
+
+  train_orchestrator:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_sncf_orchestrator
+    container_name: train_orchestrator
+    image: train_orchestrator_image
+    restart: always
+    environment:
+      DAGSTER_POSTGRES_USER: '${DAGSTER_PG_USERNAME}'
+      DAGSTER_POSTGRES_PASSWORD: '${DAGSTER_PG_PASSWORD}'
+      DAGSTER_POSTGRES_DB: '${DAGSTER_PG_DB}'
+      DAGSTER_POSTGRES_HOST: 'dagster_postgresql'
+      DAGSTER_CURRENT_IMAGE: 'train_orchestrator_image'
+      S3_API: 'http://host.docker.internal:9000'
+      S3_ACCESS_KEY: '${S3_ACCESS_KEY}'
+      S3_SECRET_ACCESS_KEY: '${S3_SECRET_ACCESS_KEY}'
+      REGION_NAME: '${REGION_NAME}'
+      BUCKET_NAME: '${BUCKET_NAME}'
+    networks:
+      - dagster_network
+
+  dagster_webserver:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_dagster
+    entrypoint:
+      - dagster-webserver
+      - -h
+      - '0.0.0.0'
+      - -p
+      - '3000'
+      - -w
+      - workspace.yaml
+    container_name: dagster_webserver
+    ports:
+      - '3000:3000'
+    environment:
+      DAGSTER_POSTGRES_USER: '${DAGSTER_PG_USERNAME}'
+      DAGSTER_POSTGRES_PASSWORD: '${DAGSTER_PG_PASSWORD}'
+      DAGSTER_POSTGRES_DB: '${DAGSTER_PG_DB}'
+      DAGSTER_POSTGRES_HOST: 'dagster_postgresql'
+    volumes: 
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/io_manager_storage:/tmp/io_manager_storage
+    networks:
+      - dagster_network
+    depends_on:
+      dagster_postgresql:
+        condition: service_healthy
+      train_orchestrator:
+        condition: service_started
+
+  dagster_daemon:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_dagster
+    entrypoint:
+      - dagster-daemon
+      - run
+    container_name: dagster_daemon
+    restart: on-failure
+    environment:
+      DAGSTER_POSTGRES_USER: '${DAGSTER_PG_USERNAME}'
+      DAGSTER_POSTGRES_PASSWORD: '${DAGSTER_PG_PASSWORD}'
+      DAGSTER_POSTGRES_DB: '${DAGSTER_PG_DB}'
+      DAGSTER_POSTGRES_HOST: 'dagster_postgresql'
+      S3_API: 'http://host.docker.internal:9000'
+      S3_ACCESS_KEY: '${S3_ACCESS_KEY}'
+      S3_SECRET_ACCESS_KEY: '${S3_SECRET_ACCESS_KEY}'
+      REGION_NAME: '${REGION_NAME}'
+      BUCKET_NAME: '${BUCKET_NAME}'
+    volumes: 
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/io_manager_storage:/tmp/io_manager_storage
+    networks:
+      - dagster_network
+    depends_on:
+      dagster_postgresql:
+        condition: service_healthy
+      train_orchestrator:
+        condition: service_started
+
+networks:
+  dagster_network:
+    driver: bridge
+    name: dagster_network

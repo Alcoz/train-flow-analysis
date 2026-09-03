@@ -1,0 +1,28 @@
+storage:
+  postgres:
+    postgres_db:
+      username:
+        env: DAGSTER_POSTGRES_USER
+      password:
+        env: DAGSTER_POSTGRES_PASSWORD
+      hostname:
+        env: DAGSTER_POSTGRES_HOST
+      db_name:
+        env: DAGSTER_POSTGRES_DB
+      port: 5432
+
+run_launcher:
+  module: dagster_docker
+  class: DockerRunLauncher
+  config:
+    network: dagster_network
+    env_vars:
+      - DAGSTER_POSTGRES_USER
+      - DAGSTER_POSTGRES_PASSWORD
+      - DAGSTER_POSTGRES_DB
+      - DAGSTER_POSTGRES_HOST
+      - S3_API
+      - S3_ACCESS_KEY
+      - S3_SECRET_ACCESS_KEY
+      - REGION_NAME
+      - BUCKET_NAME

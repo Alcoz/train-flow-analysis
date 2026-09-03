@@ -1,0 +1,5 @@
+load_from:
+  - grpc_server:
+      host: train_orchestrator
+      port: 4000
+      location_name: 'train_orchestrator'

@@ -1,0 +1,27 @@
+FROM python:3.10-slim
+
+RUN pip install uv
+
+WORKDIR /opt/dagster/app
+
+# Fichiers nécessaires à la résolution du workspace uv
+COPY .python-version pyproject.toml uv.lock ./
+
+# Code source
+COPY orchestration-dagster orchestration-dagster
+COPY data-eng data-eng
+
+RUN uv remove data-viz-platform
+
+RUN uv sync --frozen --no-dev
+
+ENV PATH="/opt/dagster/app/.venv/bin:$PATH"
+
+WORKDIR /opt/dagster/app/orchestration-dagster/src/orchestration_dagster
+
+EXPOSE 4000
+
+HEALTHCHECK --timeout=1s --start-period=3s --interval=3s --retries=20 CMD ["uv", "run", "dagster", "api", "grpc-health-check", "-p", "4000"]
+
+# CMD allows this to be overridden from run launchers or executors to execute runs and steps
+CMD ["uv", "run", "dagster", "code-server", "start", "-h", "0.0.0.0", "-p", "4000", "-f", "definitions.py", "-d", ".", "--location-name", "orchestration_dagster"]

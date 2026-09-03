@@ -5,6 +5,9 @@ version = "0.1.0"
 dependencies = [
     "dagster==1.13.17",
     "dagster-dbt>=0.29.17",
+    "dagster-docker>=0.29.17",
+    "dagster-postgres>=0.29.17",
+    "data-eng",
 ]
 
 [dependency-groups]
@@ -25,8 +28,12 @@ directory_type = "project"
 
 [tool.dg.project]
 root_module = "orchestration_dagster"
+code_location_name = "orchestration_dagster"
 registry_modules = [
     "orchestration_dagster.components.*",
 ]
+
+[tool.uv.sources]
+data-eng = { workspace = true }
 
 
