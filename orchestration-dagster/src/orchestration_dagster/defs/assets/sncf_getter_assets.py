@@ -102,7 +102,9 @@ def sncf_bronze_continue_data(
     CONTINUE_DATA_FOLDER = "data/{layer}/continue/"
 
     now = datetime.now(tz=timezone("Europe/Paris"))
-    today = now.strftime("%Y-%m-%d")
+    year = now.strftime("%Y")
+    month = now.strftime("%m")
+    day = now.strftime("%d")
     now_hms = now.strftime("%H-%M-%S")
 
     context.log.info(f"Processing date {now}")
@@ -116,7 +118,11 @@ def sncf_bronze_continue_data(
     s3_client = s3_resource.get_client()
     s3_bucket_name = s3_resource.bucket_name
     s3_filepath = (
-        CONTINUE_DATA_FOLDER.format(layer="bronze") + f"date={today}/" + f"{now_hms}.pb"
+        CONTINUE_DATA_FOLDER.format(layer="bronze")
+        + f"year={year}/"
+        + f"month={month}/"
+        + f"year={day}/"
+        + f"{now_hms}.pb"
     )
 
     try:
