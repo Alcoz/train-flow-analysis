@@ -1,6 +1,7 @@
 """Interface with boto3 for s3 management."""
 
 import boto3
+from botocore.config import Config
 
 
 def connect_to_s3(
@@ -28,6 +29,10 @@ def connect_to_s3(
         aws_access_key_id=access_key_id,
         aws_secret_access_key=secret_access_key,
         region_name=region_name,
+        config=Config(
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
+        ),
     )
 
 
