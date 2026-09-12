@@ -26,7 +26,6 @@ run_launcher:
       - S3_SECRET_ACCESS_KEY
       - REGION_NAME
       - BUCKET_NAME
-      - DUCKDB_PATH
     container_kwargs:
       volumes:
         - "/tmp/io_manager_storage:/tmp/io_manager_storage"

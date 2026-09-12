@@ -17,7 +17,6 @@ services:
       S3_SECRET_ACCESS_KEY: '${S3_SECRET_ACCESS_KEY}'
       REGION_NAME: '${REGION_NAME}'
       BUCKET_NAME: '${BUCKET_NAME}'
-      DUCKDB_PATH: '${DUCKDB_PATH}'
     networks:
       - dagster_network
     healthcheck:

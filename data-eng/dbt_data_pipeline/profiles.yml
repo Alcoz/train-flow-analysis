@@ -3,7 +3,7 @@ sncf_data_analysis:
   outputs: 
     dev:
       type: duckdb
-      path: "{{ env_var('DUCKDB_PATH') }}"
+      path: "sncf_warehouse.duckdb"
 
       extensions:
         - httpfs
