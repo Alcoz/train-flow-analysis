@@ -17,7 +17,7 @@ RUN uv sync --frozen --no-dev
 
 ENV PATH="/opt/dagster/app/.venv/bin:$PATH"
 
-RUN cd data-eng/dbt_data_pipeline && dbt deps && dbt parse
+RUN cd data-eng/dbt_data_pipeline && uv run dbt deps && uv run dbt parse
 
 WORKDIR /opt/dagster/app/orchestration-dagster/src/orchestration_dagster
 
