@@ -121,7 +121,7 @@ def sncf_bronze_continue_data(
         CONTINUE_DATA_FOLDER.format(layer="bronze")
         + f"year={year}/"
         + f"month={month}/"
-        + f"year={day}/"
+        + f"day={day}/"
         + f"{now_hms}.pb"
     )
 
