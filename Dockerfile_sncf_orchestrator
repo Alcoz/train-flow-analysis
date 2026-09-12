@@ -17,7 +17,8 @@ RUN uv sync --frozen --no-dev
 
 ENV PATH="/opt/dagster/app/.venv/bin:$PATH"
 
-RUN cd data-eng/dbt_data_pipeline && uv run dbt deps && uv run dbt parse
+COPY entrypoint.sh /opt/dagster/app/entrypoint.sh
+RUN chmod +x /opt/dagster/app/entrypoint.sh
 
 WORKDIR /opt/dagster/app/orchestration-dagster/src/orchestration_dagster
 
@@ -25,5 +26,5 @@ EXPOSE 4000
 
 HEALTHCHECK --timeout=1s --start-period=3s --interval=3s --retries=20 CMD ["uv", "run", "dagster", "api", "grpc-health-check", "-p", "4000"]
 
-# CMD allows this to be overridden from run launchers or executors to execute runs and steps
+ENTRYPOINT ["/opt/dagster/app/entrypoint.sh"]
 CMD ["uv", "run", "dagster", "code-server", "start", "-h", "0.0.0.0", "-p", "4000", "-f", "definitions.py", "-d", ".", "--location-name", "orchestration_dagster"]
