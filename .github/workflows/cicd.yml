@@ -54,6 +54,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, test]
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup SSH key
         env:
           SSH_KEY: ${{ secrets.SSH_KEY }}
@@ -61,6 +64,7 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          
       - name: Deploy project
         env:
           SSH_KEY_PATH: ~/.ssh/deploy_key
