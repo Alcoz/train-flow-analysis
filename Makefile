@@ -22,8 +22,17 @@ data-pipeline:
 create-sncf-bucket: 
 	gcloud storage buckets create gs://sncf-bucket --default-storage-class=STANDARD --location=EUROPE-WEST9 --enable-hierarchical-namespace --uniform-bucket-level-access --public-access-prevention
 
+docker-build-local:
+	direnv exec / docker compose --env-file .env.docker build --no-cache
+
+docker-up-local:
+	direnv exec / docker compose --env-file .env.docker up
+
 docker-build:
-	direnv exec / docker compose --env-file .env.docker up --build 
+	docker compose --env-file .env build --no-cache --progress=plain
+
+docker-up:
+	docker compose --env-file .env up
 
 dagster-postgres:
 	docker run --name dagster-postgres -p 5432:5432 -e POSTGRES_USER=${DAGSTER_POSTGRES_USER} -e POSTGRES_PASSWORD=${DAGSTER_POSTGRES_PASSWORD} -e POSTGRES_DB=${DAGSTER_POSTGRES_DB} -d postgres

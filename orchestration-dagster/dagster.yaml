@@ -29,3 +29,4 @@ run_launcher:
     container_kwargs:
       volumes:
         - "/tmp/io_manager_storage:/tmp/io_manager_storage"
+      auto_remove: true
