@@ -1,6 +1,9 @@
+import io
+import zipfile
+
 import polars as pl
 import pytest
-from data_eng.sncf_transformer import gtfs_csv_to_dataframe
+from data_eng.sncf_transformer import extract_gtfs_files, gtfs_csv_to_dataframe
 
 
 def test_gtfs_ids_stay_strings():
@@ -39,3 +42,17 @@ def test_gtfs_unknown_table_is_all_strings():
     df = gtfs_csv_to_dataframe("agency", b"agency_id,agency_name\n1,SNCF\n")
 
     assert set(df.schema.values()) == {pl.String}
+
+
+def test_extract_gtfs_files():
+    """Files are returned by table name, folders are skipped."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as z:
+        z.writestr("trips.txt", b"trip_id\nT1")
+        z.writestr("extra/", b"")
+        z.writestr("extra/stops.txt", b"stop_id\nS1")
+
+    assert extract_gtfs_files(buffer.getvalue()) == {
+        "trips": b"trip_id\nT1",
+        "stops": b"stop_id\nS1",
+    }

@@ -6,52 +6,63 @@ import zipfile
 import requests
 
 
-class MissingRequiredFileError(Exception):
-    """Error class for missing required file in zip."""
-
-    pass
-
-
 class EmptyRequiredFileError(Exception):
     """Error class if required file is empty."""
 
     pass
 
 
+# GTFS files used downstream: their absence is reported, not enforced.
+EXPECTED_GTFS_FILES = ["trips.txt", "routes.txt", "stops.txt"]
+
+
 def get_sncf_theoretical_train_data():
     """Getter of the theoretical data of sncf relative to trains, stations or trips descriptions.
 
+    The archive is returned as downloaded: its files are extracted later, in
+    the silver layer, so that every partition can be rebuilt from bronze.
+
     Returns:
-        dict: dictionary containing the zipfile and zipfile content extracted. Files described with gtfs format.
+        bytes: the GTFS zip archive.
+
+    Raises:
+        EmptyRequiredFileError: the archive is empty.
+        zipfile.BadZipFile: the content is not a valid zip archive.
 
     """
     sncf_theoretical_train_url = "https://eu.ftp.opendatasoft.com/sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip"
     sncf_theoretical_train_data_zip_bytes = requests.get(sncf_theoretical_train_url)
     sncf_theoretical_train_data_zip_bytes.raise_for_status()
 
-    requested_files = ["trips.txt", "routes.txt", "stops.txt"]
+    content = sncf_theoretical_train_data_zip_bytes.content
+    if not content:
+        raise EmptyRequiredFileError("The GTFS archive is empty")
 
-    extracted_files = {}
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        corrupted_file = archive.testzip()
+        if corrupted_file is not None:
+            raise zipfile.BadZipFile(
+                f"Corrupted file in GTFS archive: {corrupted_file}"
+            )
 
-    with zipfile.ZipFile(
-        io.BytesIO(sncf_theoretical_train_data_zip_bytes.content)
-    ) as archive:
-        if set(requested_files).issubset(set(archive.namelist())):
-            for filename in archive.namelist():
-                # Ignore les dossiers éventuels
-                if not filename.endswith("/") and filename in requested_files:
-                    content = archive.read(filename)
-                    if not content:
-                        raise EmptyRequiredFileError(f"Le fichier {filename} est vide")
+    return content
 
-                    extracted_files[filename] = content
-        else:
-            missing = set(requested_files) - set(archive.namelist())
-            raise MissingRequiredFileError(f"Missing files in zip: {missing}")
-    return {
-        "zip_file": sncf_theoretical_train_data_zip_bytes.content,
-        "files": extracted_files,
-    }
+
+def find_missing_gtfs_files(zip_bytes: bytes, expected_files: list[str]) -> list[str]:
+    """List the expected files that are absent or empty in a GTFS archive.
+
+    Args:
+        zip_bytes (bytes): the GTFS zip archive.
+        expected_files (list[str]): file names that should be in the archive.
+
+    Returns:
+        list[str]: the expected files that are missing or empty, sorted.
+
+    """
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+        present = {info.filename for info in archive.infolist() if info.file_size > 0}
+
+    return sorted(set(expected_files) - present)
 
 
 def get_sncf_trip_update_train_data():

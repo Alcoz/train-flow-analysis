@@ -1,5 +1,8 @@
 """Transformation functions for SNCF data."""
 
+import io
+import zipfile
+
 import polars as pl
 from google.transit import gtfs_realtime_pb2
 
@@ -42,6 +45,25 @@ GTFS_COLUMN_TYPES = {
         "feed_end_date": pl.Date,
     },
 }
+
+
+def extract_gtfs_files(zip_bytes: bytes) -> dict[str, bytes]:
+    """Extract the files of a GTFS zip archive.
+
+    Args:
+        zip_bytes (bytes): the GTFS zip archive.
+
+    Returns:
+        dict[str, bytes]: content of each file, by table name (file name
+            without the .txt extension). Folders are skipped.
+
+    """
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+        return {
+            filename.split("/")[-1].removesuffix(".txt"): archive.read(filename)
+            for filename in archive.namelist()
+            if not filename.endswith("/")
+        }
 
 
 def gtfs_csv_to_dataframe(table_name: str, csv_content: bytes) -> pl.DataFrame:

@@ -4,6 +4,7 @@ from io import BytesIO
 import dagster as dg
 import polars as pl
 from data_eng.sncf_transformer import (
+    extract_gtfs_files,
     gtfs_csv_to_dataframe,
     sncf_trip_updates_protobuf_to_sheets,
 )
@@ -11,16 +12,17 @@ from data_eng.utils.s3_connector import get_folder_content_from_s3, get_object_f
 from orchestration_dagster.defs.partitions import daily_partitions
 from orchestration_dagster.defs.resources import S3_Resource
 
-# table_name, is_mandatory
+# GTFS tables converted to silver. None is mandatory: a table missing from
+# the archive is reported and not materialized.
 GTFS_TABLES = [
-    ["trips", True],
-    ["transfers", False],
-    ["stops", True],
-    ["stop_times", False],
-    ["routes", True],
-    ["feed_info", False],
-    ["calendar_dates", False],
-    ["agency", False],
+    "trips",
+    "transfers",
+    "stops",
+    "stop_times",
+    "routes",
+    "feed_info",
+    "calendar_dates",
+    "agency",
 ]
 
 
@@ -28,20 +30,21 @@ GTFS_TABLES = [
     partitions_def=daily_partitions,
     outs={
         table: dg.AssetOut(
-            key=["sncf_silver_theoretical_data", table], is_required=is_required
+            key=["sncf_silver_theoretical_data", table], is_required=False
         )
-        for table, is_required in GTFS_TABLES
+        for table in GTFS_TABLES
     },
+    deps=["sncf_bronze_theoretical_data"],
 )
 def sncf_silver_theoretical_data(
     context: dg.AssetExecutionContext, s3_resource: S3_Resource
 ):
-    """Convert bronze theoretical GTFS files (CSV) into silver Parquet tables.
+    """Convert the theoretical GTFS archive of a day into silver Parquet tables.
 
-    Reads each CSV file present in the bronze folder for the current
-    partition (trips, stops, routes, etc.), converts it into a Polars
-    DataFrame, and writes it as Parquet in the silver layer. Files whose
-    name doesn't match a known GTFS table (GTFS_TABLES) are skipped.
+    Reads the bronze zip archive of the partition date, extracts it, and
+    writes each known GTFS table (GTFS_TABLES) as Parquet in the silver
+    layer. Unknown files are skipped; known tables missing from the archive
+    are logged and not materialized.
 
     Args:
     context: Dagster execution context, provides the partition key
@@ -54,65 +57,47 @@ def sncf_silver_theoretical_data(
     count and S3 path as metadata.
 
     """
-    THEORY_DATA_FOLDER = "data/{layer}/theory/"
+    THEORY_DATA_FOLDER = "data/silver/theory/"
     today = datetime.strptime(context.partition_key, "%Y-%m-%d").date()
     context.log.info(f"Processing date {today}")
 
     s3_client = s3_resource.get_client()
     s3_bucket_name = s3_resource.bucket_name
 
-    gtfs_table_names = [row[0] for row in GTFS_TABLES]
-
-    results = {}
-
-    for filename in get_folder_content_from_s3(
-        s3_client=s3_client,
-        bucket_name=s3_bucket_name,
-        folder=THEORY_DATA_FOLDER.format(layer="bronze") + f"date={today}/",
-    ):
-        table_name = filename.split("/")[-1].removesuffix(".txt")
-        context.log.info(f"Processeing table : {table_name}")
-
-        if table_name not in gtfs_table_names:
-            context.log.warning(f"Fichier inattendu ignoré : {filename}")
-            continue
-
-        # Doit couvrir le cas où mon fichier n'existe pas
-        file = get_object_from_s3(
+    gtfs_files = extract_gtfs_files(
+        get_object_from_s3(
             s3_client=s3_client,
             bucket=s3_bucket_name,
-            filepath=THEORY_DATA_FOLDER.format(layer="bronze")
-            + f"date={today}/"
-            + filename,
+            filepath=f"data/bronze/theory/date={today}/sncf_gtfs.zip",
         )
+    )
 
-        train_dataframe = gtfs_csv_to_dataframe(table_name, file)
+    unexpected_files = sorted(set(gtfs_files) - set(GTFS_TABLES))
+    if unexpected_files:
+        context.log.warning(f"Unexpected files skipped: {unexpected_files}")
+
+    missing_tables = sorted(set(GTFS_TABLES) - set(gtfs_files))
+    if missing_tables:
+        context.log.warning(f"GTFS tables missing from the archive: {missing_tables}")
+
+    for table_name in GTFS_TABLES:
+        if table_name not in gtfs_files:
+            continue
+
+        context.log.info(f"Processing table : {table_name}")
+        train_dataframe = gtfs_csv_to_dataframe(table_name, gtfs_files[table_name])
 
         parquet_buffer = BytesIO()
         train_dataframe.write_parquet(parquet_buffer)
         parquet_buffer.seek(0)
 
-        s3_key = (
-            THEORY_DATA_FOLDER.format(layer="silver")
-            + f"date={today}/{table_name}.parquet"
-        )
-        s3_client.upload_fileobj(
-            parquet_buffer,
-            s3_bucket_name,
-            THEORY_DATA_FOLDER.format(layer="silver")
-            + f"date={today}/"
-            + f"{table_name}.parquet",
-        )
+        s3_key = THEORY_DATA_FOLDER + f"date={today}/{table_name}.parquet"
+        s3_client.upload_fileobj(parquet_buffer, s3_bucket_name, s3_key)
 
-        results[table_name] = dg.MaterializeResult(
+        yield dg.MaterializeResult(
             asset_key=["sncf_silver_theoretical_data", table_name],
             metadata={"rows": train_dataframe.height, "s3_path": s3_key},
         )
-
-    # yield uniquement les tables effectivement produites
-    for table_name in gtfs_table_names:
-        if table_name in results:
-            yield results[table_name]
 
 
 @dg.asset(partitions_def=daily_partitions)
@@ -142,7 +127,7 @@ def sncf_silver_continue_data(
 
     service_date = datetime.strptime(context.partition_key, "%Y-%m-%d").date()
     silver_folder = CONTINUE_DATA_FOLDER.format(layer="silver") + (
-        f"service_date={service_date}/"
+        f"date={service_date}/"
     )
 
     s3_client = s3_resource.get_client()
