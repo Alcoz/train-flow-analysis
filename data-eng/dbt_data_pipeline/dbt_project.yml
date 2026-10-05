@@ -26,6 +26,6 @@ models:
   dbt_data_pipeline:
     warehouse:
       +materialized: external
-    
-    analytics:
-      +materialized: external
+
+vars:
+  "dbt_date:time_zone": "Europe/Paris"

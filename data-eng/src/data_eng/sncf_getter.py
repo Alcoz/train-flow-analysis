@@ -29,7 +29,7 @@ def get_sncf_theoretical_train_data():
     sncf_theoretical_train_data_zip_bytes = requests.get(sncf_theoretical_train_url)
     sncf_theoretical_train_data_zip_bytes.raise_for_status()
 
-    requested_files = ["trips.txt", "routes.txt"]
+    requested_files = ["trips.txt", "routes.txt", "stops.txt"]
 
     extracted_files = {}
 

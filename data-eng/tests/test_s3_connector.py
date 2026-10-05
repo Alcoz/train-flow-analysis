@@ -1,7 +1,11 @@
 import os
 
 import pytest
-from data_eng.utils.s3_connector import connect_to_s3, get_object_from_s3
+from data_eng.utils.s3_connector import (
+    connect_to_s3,
+    get_folder_content_from_s3,
+    get_object_from_s3,
+)
 from moto import mock_aws
 
 
@@ -67,3 +71,29 @@ def test_get_empty_object_from_s3(aws_credentials, s3_client):
             bucket=os.getenv("BUCKET_NAME"),
             filepath="data/test.json",
         )
+
+
+@mock_aws
+def test_get_folder_content_from_s3_paginates(aws_credentials, s3_client):
+    """Check that folders holding more than 1000 objects are fully listed."""
+    for i in range(1001):
+        s3_client.put_object(
+            Bucket="test-bucket", Key=f"data/day=01/{i:04d}.pb", Body=b"x"
+        )
+
+    files = get_folder_content_from_s3(
+        s3_client=s3_client, bucket_name="test-bucket", folder="data/day=01/"
+    )
+
+    assert len(files) == 1001
+    assert files[0] == "0000.pb"
+
+
+@mock_aws
+def test_get_folder_content_from_empty_s3_folder(aws_credentials, s3_client):
+    """Check that an empty folder returns an empty list."""
+    files = get_folder_content_from_s3(
+        s3_client=s3_client, bucket_name="test-bucket", folder="data/missing/"
+    )
+
+    assert files == []

@@ -11,22 +11,22 @@ storage:
         env: DAGSTER_POSTGRES_DB
       port: 5432
 
-run_launcher:
-  module: dagster_docker
-  class: DockerRunLauncher
-  config:
-    network: dagster_network
-    env_vars:
-      - DAGSTER_POSTGRES_USER
-      - DAGSTER_POSTGRES_PASSWORD
-      - DAGSTER_POSTGRES_DB
-      - DAGSTER_POSTGRES_HOST
-      - S3_API
-      - S3_ACCESS_KEY
-      - S3_SECRET_ACCESS_KEY
-      - REGION_NAME
-      - BUCKET_NAME
-    container_kwargs:
-      volumes:
-        - "/tmp/io_manager_storage:/tmp/io_manager_storage"
-      auto_remove: true
+# run_launcher:
+#   module: dagster_docker
+#   class: DockerRunLauncher
+#   config:
+#     network: dagster_network
+#     env_vars:
+#       - DAGSTER_POSTGRES_USER
+#       - DAGSTER_POSTGRES_PASSWORD
+#       - DAGSTER_POSTGRES_DB
+#       - DAGSTER_POSTGRES_HOST
+#       - S3_API
+#       - S3_ACCESS_KEY
+#       - S3_SECRET_ACCESS_KEY
+#       - REGION_NAME
+#       - BUCKET_NAME
+#     container_kwargs:
+#       volumes:
+#         - "/tmp/io_manager_storage:/tmp/io_manager_storage"
+#       auto_remove: true

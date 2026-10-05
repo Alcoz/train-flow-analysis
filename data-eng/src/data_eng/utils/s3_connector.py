@@ -95,11 +95,11 @@ def get_folder_content_from_s3(s3_client: boto3.client, bucket_name: str, folder
         list[str]: List of keys (paths) of the objects found under the given prefix.
 
     """
-    folder_list = [
-        file["Key"]
-        for file in s3_client.list_objects_v2(Bucket=bucket_name, Prefix=folder)[
-            "Contents"
-        ]
-    ]
+    # list_objects_v2 returns at most 1000 keys per call: paginate to get them all.
+    paginator = s3_client.get_paginator("list_objects_v2")
 
-    return folder_list
+    return [
+        file["Key"].split("/")[-1]
+        for page in paginator.paginate(Bucket=bucket_name, Prefix=folder)
+        for file in page.get("Contents", [])
+    ]

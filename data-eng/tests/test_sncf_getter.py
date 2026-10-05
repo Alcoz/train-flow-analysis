@@ -27,6 +27,7 @@ def test_requested_files_in_zip():
         {
             "trips.txt": b"trip_id,route_id\n1,A",
             "routes.txt": b"route_id\n2,B",
+            "stops.txt": b"stop_id\nS1",
         }
     )
 
@@ -66,6 +67,7 @@ def test_empty_requested_files_in_zip_error():
         {
             "trips.txt": b"trip_id,route_id\n1,A",
             "routes.txt": b"",
+            "stops.txt": b"stop_id\nS1",
         }
     )
 

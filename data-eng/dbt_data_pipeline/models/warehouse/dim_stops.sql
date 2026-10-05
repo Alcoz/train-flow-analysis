@@ -1,6 +1,6 @@
 {#-
-    One snapshot of the theoretical trips per day, written to
-    {external_root}/dim_trips/snapshot_date=YYYY-MM-DD/. Rebuilding a date
+    One snapshot of the theoretical stops per day, written to
+    {external_root}/dim_stops/snapshot_date=YYYY-MM-DD/. Rebuilding a date
     only replaces that date's partition.
 -#}
 {{
@@ -15,8 +15,11 @@
 }}
 
 SELECT
-    trip_id,
-    route_id,
-    direction_id,
+    stop_id,
+    stop_name,
+    stop_lat,
+    stop_lon,
+    location_type,
+    parent_station,
     {{ run_date() }} AS snapshot_date
-FROM {{ source("silver", "trips") }}
+FROM {{ source("silver", "stops") }}
