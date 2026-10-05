@@ -2,6 +2,8 @@ from datetime import datetime
 
 import dagster as dg
 from data_eng.sncf_getter import (
+    EXPECTED_GTFS_FILES,
+    find_missing_gtfs_files,
     get_sncf_theoretical_train_data,
     get_sncf_trip_update_train_data,
 )
@@ -10,34 +12,41 @@ from orchestration_dagster.defs.resources import S3_Resource
 from pytz import timezone
 
 
-@dg.asset()
+@dg.asset(
+    check_specs=[
+        dg.AssetCheckSpec(
+            name="expected_gtfs_files_present",
+            asset="sncf_bronze_theoretical_data",
+            description="The GTFS files used downstream are in the archive and not empty.",
+        )
+    ]
+)
 def sncf_bronze_theoretical_data(
     context: dg.AssetExecutionContext, s3_resource: S3_Resource
 ) -> dg.MaterializeResult:
     """Extract and store SNCF theoretical data (GTFS) in the bronze layer.
 
-    Fetches the theoretical GTFS export (zip archive and individual files)
-    from the SNCF API for the current partition date, then uploads the raw
-    archive and each extracted file to S3.
+    Fetches the theoretical GTFS zip archive from the SNCF API and uploads it
+    unchanged to S3. Its files are extracted in the silver layer. Missing
+    expected files are reported by a non-blocking asset check: the archive is
+    stored whatever its content.
 
     Args:
-        context: Dagster execution context, provides the partition key
-            (date) and the logger.
+        context: Dagster execution context, provides the logger.
         s3_resource: Dagster resource exposing the S3 client and target
             bucket.
 
     Returns:
-        The asset materialization result.
+        The asset materialization result, with the expected files check.
 
     """
-    THEORY_DATA_FOLDER = "data/{layer}/theory/"
-
     today = datetime.now(tz=timezone("Europe/Paris")).strftime("%Y-%m-%d")
+    s3_filepath = f"data/bronze/theory/date={today}/sncf_gtfs.zip"
 
     context.log.info(f"Processing date {today}")
 
     try:
-        sncf_theoretical_data = get_sncf_theoretical_train_data()
+        sncf_theoretical_zip = get_sncf_theoretical_train_data()
     except Exception as e:
         context.log.error(f"Error while getting theoretical data : {e}")
         raise
@@ -49,8 +58,8 @@ def sncf_bronze_theoretical_data(
         send_object_to_s3(
             s3_client,
             bucket=s3_bucket_name,
-            object=sncf_theoretical_data["zip_file"],
-            s3_filepath=f"raw/{today}/sncf_gtfs.zip",
+            object=sncf_theoretical_zip,
+            s3_filepath=s3_filepath,
         )
     except Exception as e:
         context.log.error(
@@ -59,27 +68,23 @@ def sncf_bronze_theoretical_data(
         raise
 
     context.log.info(
-        f"Raw archive of {today} is saved on s3 bucket {s3_bucket_name} at raw/{today}/sncf_gtfs.zip successfully"
+        f"Raw archive of {today} is saved on s3 bucket {s3_bucket_name} at {s3_filepath} successfully"
     )
 
-    for filename, file in sncf_theoretical_data["files"].items():
-        try:
-            send_object_to_s3(
-                s3_client=s3_client,
-                bucket=s3_bucket_name,
-                object=file,
-                s3_filepath=THEORY_DATA_FOLDER.format(layer="bronze")
-                + f"date={today}/"
-                + filename,
-            )
-        except Exception as e:
-            context.log.error(
-                f"Error while sending {filename} theoretical file to s3 bucket : {e}"
-            )
-            raise
+    missing_files = find_missing_gtfs_files(sncf_theoretical_zip, EXPECTED_GTFS_FILES)
+    if missing_files:
+        context.log.warning(f"Missing or empty GTFS files: {missing_files}")
 
-    context.log.info(
-        f"All theoretical files are saved on s3 bucket {s3_bucket_name} successfully"
+    return dg.MaterializeResult(
+        metadata={"s3_path": s3_filepath},
+        check_results=[
+            dg.AssetCheckResult(
+                check_name="expected_gtfs_files_present",
+                passed=not missing_files,
+                severity=dg.AssetCheckSeverity.WARN,
+                metadata={"missing_files": missing_files},
+            )
+        ],
     )
 
 
