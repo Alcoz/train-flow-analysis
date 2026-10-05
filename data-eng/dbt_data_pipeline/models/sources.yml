@@ -26,6 +26,6 @@ sources:
       - name: trip_updates
         description: "Real-time snapshots of the trips started on the service date, whatever their fetch day."
         meta:
-          external_location: "s3://sncf-bucket/data/silver/continue/service_date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/*.parquet"
+          external_location: "s3://sncf-bucket/data/silver/continue/date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/*.parquet"
           dagster:
             asset_key: ["sncf_silver_continue_data"]
