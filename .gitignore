@@ -212,8 +212,9 @@ __marimo__/
 # Projet ignore
 data/
 notebooks/
-warehouse/
 
 .DS_Store
 
 .tmp_dagster*/
+
+sncf_warehouse.duckdb

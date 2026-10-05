@@ -1,22 +1,31 @@
 version: 1
 
+# All silver data of a run is read for one date: the `today` var, set by
+# Dagster from the partition key.
 sources:
   - name: silver
     tables:
       - name: trips
         meta:
-          external_location: "s3://sncf-bucket/data/silver/theory/trips.parquet"
+          external_location: "s3://sncf-bucket/data/silver/theory/date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/trips.parquet"
           dagster:
             asset_key: ["sncf_silver_theoretical_data", "trips"]
 
       - name: routes
         meta:
-          external_location: "s3://sncf-bucket/data/silver/theory/routes.parquet"
+          external_location: "s3://sncf-bucket/data/silver/theory/date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/routes.parquet"
           dagster:
             asset_key: ["sncf_silver_theoretical_data", "routes"]
-      
-      - name: trip_updates
+
+      - name: stops
         meta:
-          external_location: "s3://sncf-bucket/data/silver/continue/date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/sncf_trip_update.parquet"
+          external_location: "s3://sncf-bucket/data/silver/theory/date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/stops.parquet"
+          dagster:
+            asset_key: ["sncf_silver_theoretical_data", "stops"]
+
+      - name: trip_updates
+        description: "Real-time snapshots of the trips started on the service date, whatever their fetch day."
+        meta:
+          external_location: "s3://sncf-bucket/data/silver/continue/service_date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/*.parquet"
           dagster:
             asset_key: ["sncf_silver_continue_data"]

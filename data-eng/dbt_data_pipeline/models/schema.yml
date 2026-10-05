@@ -1,13 +1,226 @@
 models:
   - name: dim_routes
+    description: "Daily snapshots of the train routes from the theoretical GTFS feed."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [route_id, snapshot_date]
+        warn_unsupported: false
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [route_id, snapshot_date]
     columns:
       - name: route_id
-        tests:
-          - unique
-          - not_null
+        data_type: varchar
+        data_tests: [not_null]
+      - name: route_short_name
+        data_type: varchar
+      - name: route_long_name
+        data_type: varchar
       - name: terminal_station_1
-        tests:
-          - not_null
+        description: "First station of route_long_name, null when the name has no ' - ' separator."
+        data_type: varchar
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
       - name: terminal_station_2
-        tests:
+        description: "Last station of route_long_name, null when the name has no ' - ' separator."
+        data_type: varchar
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: snapshot_date
+        description: "Date of the theoretical GTFS version this row comes from."
+        data_type: date
+        data_tests: [not_null]
+
+  - name: dim_trips
+    description: "Daily snapshots of the scheduled trips from the theoretical GTFS feed."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [trip_id, snapshot_date]
+        warn_unsupported: false
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [trip_id, snapshot_date]
+      - relationships_multi:
+          arguments:
+            to: ref('dim_routes')
+            columns: [route_id, snapshot_date]
+            to_columns: [route_id, snapshot_date]
+    columns:
+      - name: trip_id
+        data_type: varchar
+        data_tests: [not_null]
+      - name: route_id
+        data_type: varchar
+        data_tests: [not_null]
+      - name: direction_id
+        data_type: bigint
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+                quote: false
+      - name: snapshot_date
+        description: "Date of the theoretical GTFS version this row comes from."
+        data_type: date
+        data_tests: [not_null]
+
+  - name: dim_stops
+    description: "Daily snapshots of the stops (stop areas and stop points) from the theoretical GTFS feed."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [stop_id, snapshot_date]
+        warn_unsupported: false
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [stop_id, snapshot_date]
+      - relationships_multi:
+          arguments:
+            to: ref('dim_stops')
+            columns: [parent_station, snapshot_date]
+            to_columns: [stop_id, snapshot_date]
+    columns:
+      - name: stop_id
+        data_type: varchar
+        data_tests: [not_null]
+      - name: stop_name
+        data_type: varchar
+        data_tests: [not_null]
+      - name: stop_lat
+        data_type: double
+      - name: stop_lon
+        data_type: double
+      - name: location_type
+        description: "0 = stop point (platform), 1 = stop area (station)."
+        data_type: bigint
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+                quote: false
+      - name: parent_station
+        description: "Stop area of a stop point, null for stop areas."
+        data_type: varchar
+      - name: snapshot_date
+        description: "Date of the theoretical GTFS version this row comes from."
+        data_type: date
+        data_tests: [not_null]
+
+  - name: dim_dates
+    description: "Calendar dimension, one row per day."
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: date_day
+        data_type: date
+        constraints:
+          - type: primary_key
+            warn_unsupported: false
+        data_tests: [unique, not_null]
+      - name: day_of_week_iso
+        data_type: integer
+      - name: day_of_week_name
+        data_type: varchar
+      - name: day_of_week_name_short
+        data_type: varchar
+      - name: day_of_month
+        data_type: bigint
+      - name: day_of_year
+        data_type: bigint
+      - name: iso_week_start_date
+        data_type: date
+      - name: iso_week_of_year
+        data_type: integer
+      - name: month_of_year
+        data_type: integer
+      - name: month_name
+        data_type: varchar
+      - name: month_name_short
+        data_type: varchar
+      - name: year_number
+        data_type: integer
+
+  - name: fact_train_trips
+    description: "Real-time delays aggregated per trip, stop and service date."
+    config:
+      contract: {enforced: true}
+    # Foreign keys are checked by relationships tests: DuckDB rejects FK
+    # constraints that reference the views created by external models.
+    constraints:
+      - type: primary_key
+        columns: [trip_id, stop_id, date_id]
+        warn_unsupported: false
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [trip_id, stop_id, date_id]
+      - relationships_multi:
+          arguments:
+            to: ref('dim_trips')
+            columns: [trip_id, snapshot_date]
+            to_columns: [trip_id, snapshot_date]
+      - relationships_multi:
+          arguments:
+            to: ref('dim_routes')
+            columns: [route_id, snapshot_date]
+            to_columns: [route_id, snapshot_date]
+      - relationships_multi:
+          arguments:
+            to: ref('dim_stops')
+            columns: [stop_id, snapshot_date]
+            to_columns: [stop_id, snapshot_date]
+    columns:
+      - name: trip_id
+        data_type: varchar
+        data_tests: [not_null]
+      - name: route_id
+        data_type: varchar
+      - name: stop_id
+        data_type: varchar
+        data_tests: [not_null]
+      - name: date_id
+        data_type: date
+        data_tests:
           - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_dates')
+                field: date_day
+      - name: min_departure_delay
+        description: "Smallest departure delay forecast, in seconds."
+        data_type: bigint
+      - name: max_departure_delay
+        description: "Largest departure delay forecast, in seconds."
+        data_type: bigint
+      - name: min_arrival_delay
+        description: "Smallest arrival delay forecast, in seconds."
+        data_type: bigint
+      - name: max_arrival_delay
+        description: "Largest arrival delay forecast, in seconds."
+        data_type: bigint
+      - name: last_departure_delay
+        description: "Last known departure delay, in seconds: the closest to the actual delay."
+        data_type: bigint
+      - name: last_arrival_delay
+        description: "Last known arrival delay, in seconds: the closest to the actual delay."
+        data_type: bigint
+      - name: first_fetched_at
+        data_type: timestamp
+      - name: last_fetched_at
+        data_type: timestamp
+      - name: snapshot_date
+        description: "Version (snapshot date) of dim_trips and dim_routes used to build this row."
+        data_type: date
+        data_tests: [not_null]
