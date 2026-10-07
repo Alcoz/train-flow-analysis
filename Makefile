@@ -13,12 +13,6 @@ dbt-test:
 dbt-build:
 	dbt build --project-dir data-eng/dbt_data_pipeline --profiles-dir data-eng/dbt_data_pipeline
 
-duckui:
-	duckdb -ui warehouse/sncf_data_analysis.duckdb
-
-data-pipeline:
-	sh scripts/data-pipeline.sh
-
 create-sncf-bucket: 
 	gcloud storage buckets create gs://sncf-bucket --default-storage-class=STANDARD --location=EUROPE-WEST9 --enable-hierarchical-namespace --uniform-bucket-level-access --public-access-prevention
 

@@ -1,12 +1,11 @@
 [project]
 name = "train-flow-analysis"
 version = "0.1.0"
-description = "Add your description here"
+description = "Data platform measuring SNCF train punctuality from GTFS and GTFS-RT feeds (Bronze/Silver/Gold lakehouse with Dagster, dbt and DuckDB)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "data-eng",
-    "data-viz-platform",
     "orchestration-dagster",
     "pre-commit>=4.6.0",
     "python-dotenv>=1.2.2",
@@ -16,13 +15,11 @@ dependencies = [
 [tool.uv.workspace]
 members = [
     "data-eng",
-    "data-viz-platform",
     "orchestration-dagster"
 ]
 
 [tool.uv.sources]
 data-eng = { workspace = true }
-data-viz-platform = { workspace = true }
 orchestration-dagster = { workspace = true }
 
 

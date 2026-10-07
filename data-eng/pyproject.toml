@@ -1,7 +1,7 @@
 [project]
 name = "data-eng"
 version = "0.1.0"
-description = "Add your description here"
+description = "SNCF GTFS / GTFS-RT extraction and transformation library, S3 helpers, and the dbt project building the Gold warehouse"
 readme = "README.md"
 authors = [
     { name = "Baptiste Darnala", email = "darnala.b@gmail.com" }

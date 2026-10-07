@@ -11,8 +11,6 @@ COPY .python-version pyproject.toml uv.lock ./
 COPY orchestration-dagster orchestration-dagster
 COPY data-eng data-eng
 
-RUN uv remove data-viz-platform
-
 RUN uv sync --frozen --no-dev
 
 ENV PATH="/opt/dagster/app/.venv/bin:$PATH"

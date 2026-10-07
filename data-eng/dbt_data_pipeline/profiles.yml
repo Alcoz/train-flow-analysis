@@ -3,7 +3,7 @@ sncf_data_analysis:
   outputs: 
     dev:
       type: duckdb
-      path: "sncf_warehouse.duckdb"
+      path: ":memory:"
 
       extensions:
         - httpfs
