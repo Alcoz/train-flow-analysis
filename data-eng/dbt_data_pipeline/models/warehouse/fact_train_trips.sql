@@ -1,5 +1,5 @@
 {#-
-    Written to {external_root}/fact_train_trips/date_id=YYYY-MM-DD/data_0.parquet.
+    Written to {external_root}/fact_train_trips/date=YYYY-MM-DD/data_0.parquet.
     overwrite_or_ignore only replaces the partitions written by this run
     ('overwrite' would wipe every other date), so each run must only emit
     rows for its own date: see the start_date filter below.
@@ -8,7 +8,7 @@
     config(
         materialized='external',
         options={
-            "partition_by": "date_id",
+            "partition_by": "date",
             "overwrite_or_ignore": True
         },
         tags=["daily"]
@@ -42,7 +42,7 @@ SELECT
     s.trip_id,
     r.route_id,
     s.stop_id,
-    s.start_date AS date_id,
+    s.start_date AS date,
     s.min_departure_delay,
     s.max_departure_delay,
     s.min_arrival_delay,
@@ -51,13 +51,13 @@ SELECT
     s.last_arrival_delay,
     s.first_fetched_at,
     s.last_fetched_at,
-    t.snapshot_date
+    t.date AS snapshot_date
 FROM snapshots_agg AS s
 -- Join the dimension snapshot of the run date; snapshot_date records which
 -- version each fact row was built with.
 INNER JOIN {{ ref("dim_trips") }}  AS t
     ON s.trip_id = t.trip_id
-    AND t.snapshot_date = {{ run_date() }}
+    AND t.date = {{ run_date() }}
 INNER JOIN {{ ref("dim_routes") }} AS r
     ON t.route_id = r.route_id
-    AND r.snapshot_date = t.snapshot_date
+    AND r.date = t.date

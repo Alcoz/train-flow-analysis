@@ -1,13 +1,13 @@
 {#-
     One snapshot of the theoretical stops per day, written to
-    {external_root}/dim_stops/snapshot_date=YYYY-MM-DD/. Rebuilding a date
+    {external_root}/dim_stops/date=YYYY-MM-DD/. Rebuilding a date
     only replaces that date's partition.
 -#}
 {{
     config(
         materialized='external',
         options={
-            "partition_by": "snapshot_date",
+            "partition_by": "date",
             "overwrite_or_ignore": True
         },
         tags=["daily"]
@@ -21,5 +21,5 @@ SELECT
     stop_lon,
     location_type,
     parent_station,
-    {{ run_date() }} AS snapshot_date
+    {{ run_date() }} AS date
 FROM {{ source("silver", "stops") }}

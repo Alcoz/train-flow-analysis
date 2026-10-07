@@ -5,12 +5,12 @@ models:
       contract: {enforced: true}
     constraints:
       - type: primary_key
-        columns: [route_id, snapshot_date]
+        columns: [route_id, date]
         warn_unsupported: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
-            combination_of_columns: [route_id, snapshot_date]
+            combination_of_columns: [route_id, date]
     columns:
       - name: route_id
         data_type: varchar
@@ -33,7 +33,7 @@ models:
           - not_null:
               config:
                 severity: warn
-      - name: snapshot_date
+      - name: date
         description: "Date of the theoretical GTFS version this row comes from."
         data_type: date
         data_tests: [not_null]
@@ -44,17 +44,17 @@ models:
       contract: {enforced: true}
     constraints:
       - type: primary_key
-        columns: [trip_id, snapshot_date]
+        columns: [trip_id, date]
         warn_unsupported: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
-            combination_of_columns: [trip_id, snapshot_date]
+            combination_of_columns: [trip_id, date]
       - relationships_multi:
           arguments:
             to: ref('dim_routes')
-            columns: [route_id, snapshot_date]
-            to_columns: [route_id, snapshot_date]
+            columns: [route_id, date]
+            to_columns: [route_id, date]
     columns:
       - name: trip_id
         data_type: varchar
@@ -69,7 +69,7 @@ models:
               arguments:
                 values: [0, 1]
                 quote: false
-      - name: snapshot_date
+      - name: date
         description: "Date of the theoretical GTFS version this row comes from."
         data_type: date
         data_tests: [not_null]
@@ -80,17 +80,17 @@ models:
       contract: {enforced: true}
     constraints:
       - type: primary_key
-        columns: [stop_id, snapshot_date]
+        columns: [stop_id, date]
         warn_unsupported: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
-            combination_of_columns: [stop_id, snapshot_date]
+            combination_of_columns: [stop_id, date]
       - relationships_multi:
           arguments:
             to: ref('dim_stops')
-            columns: [parent_station, snapshot_date]
-            to_columns: [stop_id, snapshot_date]
+            columns: [parent_station, date]
+            to_columns: [stop_id, date]
     columns:
       - name: stop_id
         data_type: varchar
@@ -113,7 +113,7 @@ models:
       - name: parent_station
         description: "Stop area of a stop point, null for stop areas."
         data_type: varchar
-      - name: snapshot_date
+      - name: date
         description: "Date of the theoretical GTFS version this row comes from."
         data_type: date
         data_tests: [not_null]
@@ -160,27 +160,27 @@ models:
     # constraints that reference the views created by external models.
     constraints:
       - type: primary_key
-        columns: [trip_id, stop_id, date_id]
+        columns: [trip_id, stop_id, date]
         warn_unsupported: false
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
-            combination_of_columns: [trip_id, stop_id, date_id]
+            combination_of_columns: [trip_id, stop_id, date]
       - relationships_multi:
           arguments:
             to: ref('dim_trips')
             columns: [trip_id, snapshot_date]
-            to_columns: [trip_id, snapshot_date]
+            to_columns: [trip_id, date]
       - relationships_multi:
           arguments:
             to: ref('dim_routes')
             columns: [route_id, snapshot_date]
-            to_columns: [route_id, snapshot_date]
+            to_columns: [route_id, date]
       - relationships_multi:
           arguments:
             to: ref('dim_stops')
             columns: [stop_id, snapshot_date]
-            to_columns: [stop_id, snapshot_date]
+            to_columns: [stop_id, date]
     columns:
       - name: trip_id
         data_type: varchar
@@ -190,7 +190,7 @@ models:
       - name: stop_id
         data_type: varchar
         data_tests: [not_null]
-      - name: date_id
+      - name: date
         data_type: date
         data_tests:
           - not_null
