@@ -12,3 +12,9 @@ trip_update_getter_schedule = dg.ScheduleDefinition(
     cron_schedule="*/2 * * * *",
     execution_timezone="Europe/Paris",
 )
+
+service_alerts_getter_schedule = dg.ScheduleDefinition(
+    job=sncf_getter_jobs.service_alerts_getter_job,
+    cron_schedule="*/5 * * * *",
+    execution_timezone="Europe/Paris",
+)

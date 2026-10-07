@@ -4,6 +4,7 @@ import dagster as dg
 from data_eng.sncf_getter import (
     EXPECTED_GTFS_FILES,
     find_missing_gtfs_files,
+    get_sncf_service_alerts_data,
     get_sncf_theoretical_train_data,
     get_sncf_trip_update_train_data,
 )
@@ -140,6 +141,65 @@ def sncf_bronze_continue_data(
     except Exception as e:
         context.log.error(
             f"Error while sending raw theoretical file to s3 bucket : {e}"
+        )
+        raise
+
+    context.log.info(
+        f"Raw file of {now} is saved on s3 bucket {s3_bucket_name} at {s3_filepath} successfully"
+    )
+
+
+@dg.asset()
+def sncf_bronze_service_alerts_data(
+    context: dg.AssetExecutionContext, s3_resource: S3_Resource
+):
+    """Extract and store SNCF real-time service alerts in the bronze layer.
+
+    Fetches the GTFS-realtime feed (service alerts) from SNCF and uploads the
+    raw protobuf file to S3, organised like the trip updates by fetch day.
+
+    Args:
+    context: Dagster execution context, provides the logger.
+    s3_resource: Dagster resource exposing the S3 client and target
+        bucket.
+
+    """
+    ALERTS_DATA_FOLDER = "data/{layer}/alerts/"
+
+    now = datetime.now(tz=timezone("Europe/Paris"))
+    year = now.strftime("%Y")
+    month = now.strftime("%m")
+    day = now.strftime("%d")
+    now_hms = now.strftime("%H-%M-%S")
+
+    context.log.info(f"Processing date {now}")
+
+    try:
+        sncf_service_alerts_data = get_sncf_service_alerts_data()
+    except Exception as e:
+        context.log.error(f"Error while getting service alerts data : {e}")
+        raise
+
+    s3_client = s3_resource.get_client()
+    s3_bucket_name = s3_resource.bucket_name
+    s3_filepath = (
+        ALERTS_DATA_FOLDER.format(layer="bronze")
+        + f"year={year}/"
+        + f"month={month}/"
+        + f"day={day}/"
+        + f"{now_hms}.pb"
+    )
+
+    try:
+        send_object_to_s3(
+            s3_client=s3_client,
+            bucket=s3_bucket_name,
+            object=sncf_service_alerts_data,
+            s3_filepath=s3_filepath,
+        )
+    except Exception as e:
+        context.log.error(
+            f"Error while sending raw service alerts file to s3 bucket : {e}"
         )
         raise
 

@@ -84,3 +84,27 @@ def get_sncf_trip_update_train_data():
         raise EmptyRequiredFileError
 
     return sncf_trip_update_train_data.content
+
+
+def get_sncf_service_alerts_data():
+    """Getter of the service alerts of the sncf.
+
+    Alerts describe the disruptions (cause, effect, affected routes, trips
+    and stops) and their active periods.
+
+    Returns:
+        (bytes | Any): service alerts SNCF data in GTFS-RT.
+
+    """
+    sncf_service_alerts_url = (
+        "https://proxy.transport.data.gouv.fr/resource/sncf-gtfs-rt-service-alerts"
+    )
+    sncf_service_alerts_data = requests.get(sncf_service_alerts_url)
+    sncf_service_alerts_data.raise_for_status()
+
+    sncf_service_alerts_content = sncf_service_alerts_data.content
+
+    if not sncf_service_alerts_content:
+        raise EmptyRequiredFileError
+
+    return sncf_service_alerts_content

@@ -40,6 +40,7 @@ The pipeline follows a **Bronze / Silver / Gold** (medallion) architecture, orch
 
 - `sncf_bronze_theoretical_data` downloads the [SNCF GTFS archive](https://ressources.data.sncf.com/explore/dataset/horaires-sncf/information/) once a day and stores it unchanged. An asset check warns (without blocking) when `trips.txt`, `routes.txt` or `stops.txt` is missing or empty.
 - `sncf_bronze_continue_data` fetches the [GTFS-RT trip updates feed](https://transport.data.gouv.fr/) every 2 minutes and stores each protobuf snapshot.
+- `sncf_bronze_service_alerts_data` fetches the GTFS-RT service alerts feed (disruptions with their cause, effect and affected routes, trips and stops) every 2 minutes and stores each snapshot under `data/bronze/alerts/year=/month=/day=/HH-MM-SS.pb`. It is not transformed into Silver yet.
 
 Raw data is kept as-is, so any later layer can be rebuilt from Bronze.
 
@@ -68,6 +69,7 @@ Models enforce contracts and are covered by dbt tests (uniqueness, not-null, acc
 |------------------------------|------------------------------|------------------------------------|
 | `theoretical_getter_job`     | Bronze GTFS                  | Every day at 10:30                 |
 | `trip_update_getter_job`     | Bronze GTFS-RT               | Every 2 minutes                    |
+| `service_alerts_getter_job`  | Bronze GTFS-RT alerts        | Every 2 minutes                    |
 | `sncf_data_preparation_job`  | Silver + all Gold models     | Every day at 03:00, previous day's partition |
 
 ## Project structure
@@ -76,7 +78,7 @@ Models enforce contracts and are covered by dbt tests (uniqueness, not-null, acc
 train-flow-analysis/
 ├── data-eng/                       # Python library + dbt project
 │   ├── src/data_eng/
-│   │   ├── sncf_getter.py          # Download GTFS and GTFS-RT feeds
+│   │   ├── sncf_getter.py          # Download GTFS and GTFS-RT feeds (trip updates, alerts)
 │   │   ├── sncf_transformer.py     # GTFS → typed Polars tables, protobuf → rows
 │   │   └── utils/s3_connector.py   # boto3 helpers (get, put, paginated listing)
 │   ├── dbt_data_pipeline/          # dbt project: Gold star schema

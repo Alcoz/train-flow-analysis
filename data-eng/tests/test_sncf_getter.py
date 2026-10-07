@@ -7,6 +7,7 @@ import pytest
 from data_eng.sncf_getter import (
     EmptyRequiredFileError,
     find_missing_gtfs_files,
+    get_sncf_service_alerts_data,
     get_sncf_theoretical_train_data,
     get_sncf_trip_update_train_data,
 )
@@ -86,3 +87,18 @@ def test_empty_trip_updates_error():
         patch("requests.get", return_value=mock_response),
     ):
         get_sncf_trip_update_train_data()
+
+
+def test_service_alerts_returned_as_is():
+    """The getter returns the downloaded protobuf unchanged."""
+    with patch("requests.get", return_value=mock_download(b"\x0a\x02alerts")):
+        assert get_sncf_service_alerts_data() == b"\x0a\x02alerts"
+
+
+def test_empty_service_alerts_error():
+    """An empty service alerts download is rejected."""
+    with (
+        pytest.raises(EmptyRequiredFileError),
+        patch("requests.get", return_value=mock_download(b"")),
+    ):
+        get_sncf_service_alerts_data()
