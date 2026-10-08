@@ -46,6 +46,13 @@ GTFS_COLUMN_TYPES = {
     },
 }
 
+# GTFS-RT statuses, stored by name: the feed only sends them when they differ
+# from SCHEDULED, an absent field reads as its default (0 = SCHEDULED).
+TRIP_SCHEDULE_RELATIONSHIP = gtfs_realtime_pb2.TripDescriptor.ScheduleRelationship
+STOP_SCHEDULE_RELATIONSHIP = (
+    gtfs_realtime_pb2.TripUpdate.StopTimeUpdate.ScheduleRelationship
+)
+
 
 def extract_gtfs_files(zip_bytes: bytes) -> dict[str, bytes]:
     """Extract the files of a GTFS zip archive.
@@ -118,15 +125,25 @@ def sncf_trip_updates_protobuf_to_sheets(protobuf_sncf_data):
         trip_id = entity.trip_update.trip.trip_id
         trip_start_time = entity.trip_update.trip.start_time
         trip_start_date = entity.trip_update.trip.start_date
+        trip_schedule_relationship = TRIP_SCHEDULE_RELATIONSHIP.Name(
+            entity.trip_update.trip.schedule_relationship
+        )
 
-        for stop_time in entity.trip_update.stop_time_update:
+        # The SNCF never sends stop_sequence: the order of the list is the actual
+        # order of the trip (added stops included), and passed stops stay in it.
+        for stop_position, stop_time in enumerate(entity.trip_update.stop_time_update):
             dep, arr = stop_time.departure, stop_time.arrival
             rows.append(
                 {
                     "trip_id": trip_id,
                     "start_time": trip_start_time,
                     "start_date": f"{trip_start_date[0:4]}-{trip_start_date[4:6]}-{trip_start_date[6:8]}",
+                    "trip_schedule_relationship": trip_schedule_relationship,
                     "stop_id": stop_time.stop_id,
+                    "stop_position": stop_position,
+                    "stop_schedule_relationship": STOP_SCHEDULE_RELATIONSHIP.Name(
+                        stop_time.schedule_relationship
+                    ),
                     "departure_time": dep.time
                     if dep.HasField("time") and dep.time
                     else None,
@@ -142,9 +159,10 @@ def sncf_trip_updates_protobuf_to_sheets(protobuf_sncf_data):
     schema = {
         "trip_id": pl.String,
         "start_date": pl.String,
+        "trip_schedule_relationship": pl.String,
         "stop_id": pl.String,
-        "stop_sequence": pl.Int64,
-        "schedule_relationship": pl.Int64,
+        "stop_position": pl.Int64,
+        "stop_schedule_relationship": pl.String,
         "departure_time": pl.Int64,
         "departure_delay": pl.Int64,
         "arrival_time": pl.Int64,
