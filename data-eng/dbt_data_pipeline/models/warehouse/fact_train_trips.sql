@@ -19,6 +19,7 @@ WITH snapshots_agg AS (
     SELECT
         trip_id,
         stop_id,
+        arg_max(stop_position, fetched_at) as stop_position,
         start_date,
         MIN(departure_delay)            AS min_departure_delay,
         MAX(departure_delay)            AS max_departure_delay,
@@ -42,6 +43,7 @@ SELECT
     s.trip_id,
     r.route_id,
     s.stop_id,
+    s.stop_position,
     s.start_date AS date,
     s.min_departure_delay,
     s.max_departure_delay,

@@ -190,6 +190,9 @@ models:
       - name: stop_id
         data_type: varchar
         data_tests: [not_null]
+      - name: stop_position
+        description: "Position of the stop in the trip (0 = origin)."
+        data_type: bigint
       - name: date
         data_type: date
         data_tests:
