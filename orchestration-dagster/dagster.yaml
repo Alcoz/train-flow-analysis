@@ -30,3 +30,13 @@ storage:
 #       volumes:
 #         - "/tmp/io_manager_storage:/tmp/io_manager_storage"
 #       auto_remove: true
+# Schedule ticks are kept forever by default; the `*/2` and `*/5` getter
+# schedules alone create ~1000 ticks a day. The daemon purges them hourly.
+retention:
+  schedule:
+    purge_after_days: 14
+  sensor:
+    purge_after_days:
+      skipped: 7
+      success: 14
+      failure: 30

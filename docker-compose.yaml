@@ -1,4 +1,29 @@
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
 services:
+  dagster_postgres:
+    image: postgres:17-alpine
+    container_name: dagster_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: '${DAGSTER_POSTGRES_USER}'
+      POSTGRES_PASSWORD: '${DAGSTER_POSTGRES_PASSWORD}'
+      POSTGRES_DB: '${DAGSTER_POSTGRES_DB}'
+    volumes:
+      - dagster_postgres_data:/var/lib/postgresql/data
+    networks:
+      - dagster_network
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   train_orchestrator:
     build:
       context: .
@@ -10,7 +35,7 @@ services:
       DAGSTER_POSTGRES_USER: '${DAGSTER_POSTGRES_USER}'
       DAGSTER_POSTGRES_PASSWORD: '${DAGSTER_POSTGRES_PASSWORD}'
       DAGSTER_POSTGRES_DB: '${DAGSTER_POSTGRES_DB}'
-      DAGSTER_POSTGRES_HOST: '${DAGSTER_POSTGRES_HOST}'
+      DAGSTER_POSTGRES_HOST: dagster_postgres
       DAGSTER_CURRENT_IMAGE: 'train_orchestrator_image'
       S3_API: '${S3_API}'
       S3_ACCESS_KEY: '${S3_ACCESS_KEY}'
@@ -19,6 +44,10 @@ services:
       BUCKET_NAME: '${BUCKET_NAME}'
     networks:
       - dagster_network
+    logging: *default-logging
+    depends_on:
+      dagster_postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.create_connection(('localhost', 4000), timeout=3)"]
       interval: 5s
@@ -39,19 +68,23 @@ services:
       - -w
       - workspace.yaml
     container_name: dagster_webserver
+    restart: always
     ports:
       - '3000:3000'
     environment:
       DAGSTER_POSTGRES_USER: '${DAGSTER_POSTGRES_USER}'
       DAGSTER_POSTGRES_PASSWORD: '${DAGSTER_POSTGRES_PASSWORD}'
       DAGSTER_POSTGRES_DB: '${DAGSTER_POSTGRES_DB}'
-      DAGSTER_POSTGRES_HOST: '${DAGSTER_POSTGRES_HOST}'
+      DAGSTER_POSTGRES_HOST: dagster_postgres
     volumes: 
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/io_manager_storage:/tmp/io_manager_storage
     networks:
       - dagster_network
+    logging: *default-logging
     depends_on:
+      dagster_postgres:
+        condition: service_healthy
       train_orchestrator:
         condition: service_healthy
 
@@ -68,7 +101,7 @@ services:
       DAGSTER_POSTGRES_USER: '${DAGSTER_POSTGRES_USER}'
       DAGSTER_POSTGRES_PASSWORD: '${DAGSTER_POSTGRES_PASSWORD}'
       DAGSTER_POSTGRES_DB: '${DAGSTER_POSTGRES_DB}'
-      DAGSTER_POSTGRES_HOST: '${DAGSTER_POSTGRES_HOST}'
+      DAGSTER_POSTGRES_HOST: dagster_postgres
       S3_API: '${S3_API}'
       S3_ACCESS_KEY: '${S3_ACCESS_KEY}'
       S3_SECRET_ACCESS_KEY: '${S3_SECRET_ACCESS_KEY}'
@@ -79,7 +112,10 @@ services:
       - /tmp/io_manager_storage:/tmp/io_manager_storage
     networks:
       - dagster_network
+    logging: *default-logging
     depends_on:
+      dagster_postgres:
+        condition: service_healthy
       train_orchestrator:
         condition: service_healthy
 
@@ -87,3 +123,6 @@ networks:
   dagster_network:
     driver: bridge
     name: dagster_network
+
+volumes:
+  dagster_postgres_data:

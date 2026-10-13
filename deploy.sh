@@ -24,3 +24,6 @@ ssh -i "$SSH_KEY_PATH" "$SSH_USER@$SSH_HOST" "cd $REMOTE_PATH && docker compose 
 
 echo "==> Pruning des images Docker inutilisées"
 ssh -i "$SSH_KEY_PATH" "$SSH_USER@$SSH_HOST" "docker image prune -f"
+
+echo "==> Pruning du cache de build Docker de plus de 7 jours"
+ssh -i "$SSH_KEY_PATH" "$SSH_USER@$SSH_HOST" "docker builder prune -f --filter until=168h"
