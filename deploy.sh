@@ -14,9 +14,12 @@ echo "==> Vérification / initialisation du repository distant"
 ssh -i "$SSH_KEY_PATH" "$SSH_USER@$SSH_HOST" bash -s <<EOF
 set -euo pipefail
 if [ -d "$REMOTE_PATH/.git" ]; then
-  echo "Repo déjà présent, pull..."
+  echo "Repo déjà présent, synchronisation sur origin..."
   cd "$REMOTE_PATH"
-  git pull
+  # The server only mirrors the remote: a reset survives rewritten history
+  # where a pull refuses divergent branches.
+  git fetch origin
+  git reset --hard '@{upstream}'
 else
   echo "Repo absent, clonage..."
   mkdir -p "$(dirname "$REMOTE_PATH")"
