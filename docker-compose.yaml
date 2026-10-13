@@ -42,6 +42,8 @@ services:
       S3_SECRET_ACCESS_KEY: '${S3_SECRET_ACCESS_KEY}'
       REGION_NAME: '${REGION_NAME}'
       BUCKET_NAME: '${BUCKET_NAME}'
+      DISCORD_WEBHOOK_URL: '${DISCORD_WEBHOOK_URL:-}'
+      HEALTHCHECK_PING_URL: '${HEALTHCHECK_PING_URL:-}'
     networks:
       - dagster_network
     logging: *default-logging

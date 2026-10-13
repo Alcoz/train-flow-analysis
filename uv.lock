@@ -1813,6 +1813,7 @@ dependencies = [
     { name = "dagster-docker" },
     { name = "dagster-postgres" },
     { name = "data-eng" },
+    { name = "requests" },
 ]
 
 [package.dev-dependencies]
@@ -1828,6 +1829,7 @@ requires-dist = [
     { name = "dagster-docker", specifier = ">=0.29.17" },
     { name = "dagster-postgres", specifier = ">=0.29.17" },
     { name = "data-eng", editable = "data-eng" },
+    { name = "requests", specifier = ">=2.33.1" },
 ]
 
 [package.metadata.requires-dev]
