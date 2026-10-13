@@ -3,12 +3,14 @@ import os
 import dagster as dg
 import requests
 from dagster_shared.error import SerializableErrorInfo
-from orchestration_dagster.defs.jobs import sncf_getter_jobs
 from orchestration_dagster.defs.jobs.maintenance_jobs import FINISHED_STATUSES
 
 # The webserver is only reachable through the SSH tunnel.
 DAGSTER_UI_URL = "http://localhost:3000"
 DISCORD_DETAILS_LIMIT = 1500
+HEALTHCHECKS_PING_URL = "https://hc-ping.com"
+# Set by Dagster on runs launched by a schedule; manual runs prove nothing about it.
+SCHEDULE_NAME_TAG = "dagster/schedule_name"
 
 # Alerting sensors start on their own: one left stopped by mistake would fail
 # silently, which is exactly what they are here to prevent. They write nothing.
@@ -79,15 +81,23 @@ def discord_on_run_recovery(context: dg.RunStatusSensorContext) -> None:
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.SUCCESS,
-    monitored_jobs=[sncf_getter_jobs.trip_update_getter_job],
     default_status=dg.DefaultSensorStatus.RUNNING,
 )
 def healthchecks_heartbeat(context: dg.RunStatusSensorContext) -> None:
-    """Ping Healthchecks.io after each successful trip update run.
+    """Ping the job's Healthchecks.io check after each successful scheduled run.
 
     Healthchecks alerts Discord when pings stop, which covers what Dagster cannot
     report itself: database down, daemon stuck, VM off, schedule turned off.
+    Each job pings its own check, named after the job and created on first ping.
     """
-    ping_url = os.getenv("HEALTHCHECK_PING_URL")
-    if ping_url:
-        requests.get(ping_url, timeout=10).raise_for_status()
+    run = context.dagster_run
+    ping_key = os.getenv("HEALTHCHECK_PING_KEY")
+    if not ping_key or SCHEDULE_NAME_TAG not in run.tags:
+        return
+
+    response = requests.get(
+        f"{HEALTHCHECKS_PING_URL}/{ping_key}/{run.job_name}",
+        params={"create": 1},
+        timeout=10,
+    )
+    response.raise_for_status()
