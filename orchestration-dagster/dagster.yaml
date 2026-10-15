@@ -40,3 +40,13 @@ retention:
       skipped: 7
       success: 14
       failure: 30
+
+# A backfill queues one run per partition at once; they all share the code
+# server's container with the getters, whose data can't be fetched later.
+# Backfill runs (auto-tagged dagster/backfill) go one at a time; other runs
+# are not limited.
+concurrency:
+  runs:
+    tag_concurrency_limits:
+      - key: "dagster/backfill"
+        limit: 1
