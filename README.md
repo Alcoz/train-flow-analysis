@@ -72,7 +72,11 @@ Models enforce contracts and are covered by dbt tests (uniqueness, not-null, acc
 | `theoretical_getter_job`     | Bronze GTFS                  | Every day at 10:30                 |
 | `trip_update_getter_job`     | Bronze GTFS-RT               | Every 2 minutes                    |
 | `service_alerts_getter_job`  | Bronze GTFS-RT alerts        | Every 2 minutes                    |
-| `sncf_data_preparation_job`  | Silver + all Gold models     | Every day at 03:00, previous day's partition |
+| `sncf_delay_preparation_job` | Silver GTFS and GTFS-RT, Gold delay and cancellation models (partitions since 2026-09-14) | Every day at 03:00, previous day's partition |
+| `sncf_alerts_preparation_job` | Silver alerts, `fact_alerts` (partitions since 2026-10-07, start of the alerts collection) | Every day at 03:00, previous day's partition |
+| `sncf_disruptions_preparation_job` | `fact_trip_disruptions`, from the Gold files of the two jobs above | Every day at 03:30, previous day's partition |
+
+A job has a single partitions definition, so assets starting on different dates are in different jobs. The DuckDB of each dbt run is in memory: jobs only share Gold files. The dbt project is loaded by two Dagster components (`dbt_ingest` for `tag:daily`, `dbt_alerts` for `tag:alerts`), one per partitions definition.
 
 ## Project structure
 

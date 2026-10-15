@@ -445,8 +445,8 @@ models:
           - accepted_values:
               arguments:
                 values: ['planned', 'late_cancelled', 'deprogrammed']
-  - name: int_alerts
-    description: "Service alerts present in the feed on the run date, in their last version of the day, with the category and reason given by alert_classification_rules."
+  - name: fact_alerts
+    description: "Service alerts present in the feed on the run date, in their last version of the day, with the category and reason given by alert_classification_rules. Written to Gold so that fact_trip_disruptions, built by another job, can read it."
     config:
       contract: {enforced: true}
     constraints:

@@ -4,6 +4,8 @@
     lists its train number and D falls within an active period of the alert
     (see business_rules.md). Alerts only give train numbers, with no date:
     fact_trip_runs turns them into trains.
+    Built by its own job, after the alerts and delay jobs: both inputs are read
+    from their Gold files of the day (see the gold_partition macro).
     Written to {external_root}/fact_trip_disruptions/date=YYYY-MM-DD/data_0.parquet;
     overwrite_or_ignore only replaces the partition of this run, so the run
     must only emit rows for its own date.
@@ -15,9 +17,12 @@
             "partition_by": "date",
             "overwrite_or_ignore": True
         },
-        tags=["daily"]
+        tags=["alerts"]
     )
 }}
+
+-- depends_on: {{ ref("fact_alerts") }}
+-- depends_on: {{ ref("fact_trip_runs") }}
 
 WITH alert_trains AS (
     SELECT DISTINCT
@@ -26,7 +31,7 @@ WITH alert_trains AS (
         a.reason,
         a.rule_id,
         e.entity.trip_id AS train_number
-    FROM {{ ref("int_alerts") }} AS a,
+    FROM {{ gold_partition("fact_alerts") }} AS a,
         unnest(a.informed_entities) AS e(entity)
     -- Entities with only a stop or a line are not linked to trains
     WHERE e.entity.trip_id IS NOT NULL
@@ -49,7 +54,7 @@ WITH alert_trains AS (
 )
 
 SELECT
-    r.date,
+    {{ run_date() }} AS date,
     a.alert_id,
     r.trip_id,
     r.train_number,
@@ -60,6 +65,5 @@ SELECT
     a.reason,
     a.rule_id
 FROM alert_trains AS a
-INNER JOIN {{ ref("fact_trip_runs") }} AS r
+INNER JOIN {{ gold_partition("fact_trip_runs") }} AS r
     ON a.train_number = r.train_number
-WHERE r.date = {{ run_date() }}

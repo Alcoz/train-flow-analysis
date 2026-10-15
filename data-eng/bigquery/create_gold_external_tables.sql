@@ -44,6 +44,17 @@ OPTIONS (
   hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/agg_daily_route'
 );
 
+-- active_periods and informed_entities are lists of structs: list inference
+-- reads them as ARRAY<STRUCT> instead of the raw Parquet list wrapper.
+CREATE OR REPLACE EXTERNAL TABLE gold.fact_alerts
+WITH PARTITION COLUMNS (date DATE)
+OPTIONS (
+  format = 'PARQUET',
+  enable_list_inference = true,
+  uris = ['gs://sncf-bucket/data/gold/fact_alerts/*'],
+  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_alerts'
+);
+
 CREATE OR REPLACE EXTERNAL TABLE gold.fact_trip_disruptions
 WITH PARTITION COLUMNS (date DATE)
 OPTIONS (
