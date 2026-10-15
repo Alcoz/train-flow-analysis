@@ -27,6 +27,7 @@ The pipeline follows a **Bronze / Silver / Gold** (medallion) architecture, orch
  ┌─────────────────────────────────────────────────────────┐
  │ Silver   data/silver/theory/date=YYYY-MM-DD/<table>.parquet
  │          data/silver/continue/date=YYYY-MM-DD/*.parquet  │
+ │          data/silver/alerts/date=YYYY-MM-DD/*.parquet    │
  └─────────────────────────────────────────────────────────┘
           │ dbt build (DuckDB, reads/writes S3 through httpfs)
           ▼
@@ -40,7 +41,7 @@ The pipeline follows a **Bronze / Silver / Gold** (medallion) architecture, orch
 
 - `sncf_bronze_theoretical_data` downloads the [SNCF GTFS archive](https://ressources.data.sncf.com/explore/dataset/horaires-sncf/information/) once a day and stores it unchanged. An asset check warns (without blocking) when `trips.txt`, `routes.txt` or `stops.txt` is missing or empty.
 - `sncf_bronze_continue_data` fetches the [GTFS-RT trip updates feed](https://transport.data.gouv.fr/) every 2 minutes and stores each protobuf snapshot.
-- `sncf_bronze_service_alerts_data` fetches the GTFS-RT service alerts feed (disruptions with their cause, effect and affected routes, trips and stops) every 2 minutes and stores each snapshot under `data/bronze/alerts/year=/month=/day=/HH-MM-SS.pb`. It is not transformed into Silver yet.
+- `sncf_bronze_service_alerts_data` fetches the GTFS-RT service alerts feed (disruptions with their cause, effect and affected routes, trips and stops) every 2 minutes and stores each snapshot under `data/bronze/alerts/year=/month=/day=/HH-MM-SS.pb`.
 
 Raw data is kept as-is, so any later layer can be rebuilt from Bronze.
 
@@ -49,6 +50,7 @@ Raw data is kept as-is, so any later layer can be rebuilt from Bronze.
 Silver assets are **partitioned by day** (`Europe/Paris`) and idempotent: rebuilding a partition overwrites the same files.
 
 - `sncf_silver_theoretical_data` extracts the archive and writes each GTFS table (`trips`, `routes`, `stops`, `stop_times`, `transfers`, `calendar_dates`, `feed_info`, `agency`) as Parquet. Identifiers are kept as strings and only known numeric/date columns are cast, strictly.
+- `sncf_silver_alerts_data` converts each service alerts snapshot of the day into one Parquet file under `data/silver/alerts/date=YYYY-MM-DD/`, with one row per alert: cause and effect (null when the SNCF did not set them), French header and description cleaned of their HTML, and the active periods and targeted train numbers as lists. Alerts have no service date, so they are stored by **fetch date**.
 - `sncf_silver_continue_data` flattens the trip updates (one row per trip and stop, with departure/arrival times and delays). Data is stored by **service date** rather than fetch date: overnight trains keep sending updates after midnight, so the next day's snapshots are read too. This is why the daily job runs at 03:00 for the previous day.
 
 ### Warehouse (Gold)

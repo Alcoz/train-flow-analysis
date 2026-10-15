@@ -1,0 +1,32 @@
+rule_id,priority,cause_filter,pattern,category,reason
+cause_maintenance,10,MAINTENANCE,.,travaux,Travaux
+info_annulation,50,,(contrairement a ce qui a ete annonce|circule normalement|circule a nouveau),information_voyageur,Annulation d'une alerte
+infra_pn,100,,passage a niveau,incident,Passage à niveau
+infra_aiguillage,100,,aiguillage,incident,Aiguillage
+infra_signalisation,100,,signalisation,incident,Signalisation
+infra_electrique,100,,(alimentation electrique|catenaire|panne d.electricite|panne electrique),incident,Alimentation électrique
+animal,90,,anima(l|ux),incident,Animal sur la voie
+personnes_voies,90,,(personnes?|individus?) (sur|dans|aux abords des?) (les )?voies?,incident,Personnes sur les voies
+surete,90,,(surete|vol de cables|forces de l.ordre|colis suspect|bagage oublie|bagage abandonne|comportement inadapte|malveillance|signal d.alarme|vandalisme|police|perimetre de securite|jets? de pierres?|degradations?),incident,Sûreté / malveillance
+malade,90,,(voyageur malade|etat de sante|malaise|secours|voyageur est (actuellement )?pris en charge),incident,Voyageur malade
+accident_personne,80,,(accident de personne|heurt d.une personne),incident,Accident de personne
+meteo,90,,(meteo|intemperie|pluies?|precipitations|inondation|orage|neige|vent violent|tempete|chute d.arbre|arbre sur la voie|adherence|humidite|vegetation|feuilles),incident,Météo / végétation
+obstacle,90,,obstacle,incident,Obstacle sur la voie
+greve,90,,(mouvement social|greve|preavis|manifestant|manifestation),incident,Mouvement social / manifestation
+materiel,120,,(panne (du|de|d.un|sur le) (autre )?(train|tgv|ter|rame|locomotive)|panne d.un autre train|train en panne|materiel (prevu )?(est )?tombe en panne|defaillance (de|du) materiel|indisponibilite d.un materiel|verification technique|procedure de depannage|attente materiel|manque de materiel|materiel prevu|rame initialement prevue|train initialement prevu doit etre remplace|locomotive|intervention de maintenance|operation de maintenance imprevue|operations de maintenance sur le train|maintenance sur le train|modification de materiel|limitation de votre rame),incident,Matériel roulant
+preparation,120,,(preparation du train|formation du train|(manœuvre|manoeuvre)),incident,Préparation du train
+personnel,120,,"(equipe a bord|membre de l.equipage|conducteur absent|absence d.un agent|agent .{0,40}est absent|attente d.un conducteur)",incident,Personnel
+infra_autre,130,,(panne d.une installation|incident sur le reseau|incident d.infrastructure|defaut d.infrastructure|difficulte de reception|derangement|intervention sur les voies),incident,Infrastructure (autre)
+affluence_retard,130,OTHER_CAUSE,(affluence|difficultes? lors de la montee|difficultes? lors des operations|montee des voyageurs|nombreux voyageurs),incident,Affluence
+correspondance,130,,(correspondance|train en provenance|retard de votre rame|retard de la rame|arrivee tardive|arrive d.abord d.une autre destination|reutilisation d.un train|raccordement avec un autre train),incident,Retard d'un autre train
+regulation,140,,(distance de securite|ralentir|ralentissement d.un train|laisser passer|autorisation de depart|nombre important de trains|densite du trafic|regulation|gestion du trafic|circulant devant|s.arreter pour prendre|vitesse du train est reduite),incident,Régulation du trafic
+production,140,,(contraintes? de production|contraintes? d.exploitation),incident,Contraintes de production
+travaux_net,150,,(travaux|chantier|operations? de maintenance|operations? programmees|maintenance terminees),travaux,Travaux
+info_quai,300,,(hors.quai|placement a l.avant|positionnement rame|queue (du|de) train fermee|rame fermee|emprunter la rame|montee par l.avant|porte hors quai|portes qui ne seront pas recues),information_voyageur,Composition / quai
+info_capacite,300,,(train complet|est complet|capacite reduite|train court|sous composition|nombre de places|places assises|reduction du nombre|disposant de (moins|plus) de places),information_voyageur,Capacité
+info_affluence,310,absent,(affluence),information_voyageur,Affluence prévue
+info_equipement,300,,(distributeur|toilettes|\bwc\b|ascenseur|equipement en gare|guichet|escalator|escalier mecanique|info confort|wifi|climatisation),information_voyageur,Équipement / confort
+info_arret,300,,(arret deporte|deplacement du point d.arret|arret a la demande|prise en charge rue|informations? concernant cet autocar|informations? pour les car|arrets supplementaires|bagages),information_voyageur,Information arrêt / autocar
+info_horaire,320,,(vacances scolaires|modification de voies?|circulation a contre sens|horaires? modifies?|modifications horaires),information_voyageur,Horaires / voies
+generic_supprime,800,,(supprime|suppression|ne circule pas|ne circulera pas|annule|remplace par (un )?(auto)?car|terminus exceptionnel|ne dessert pas),incident,Non précisée
+generic_retard,800,,(retard|perturb|ralenti|interromp|interruption|trafic|incident|panne|immobilise),incident,Non précisée

@@ -227,3 +227,57 @@ models:
         description: "Version (snapshot date) of dim_trips and dim_routes used to build this row."
         data_type: date
         data_tests: [not_null]
+
+  - name: int_alerts
+    description: "Service alerts present in the feed on the run date, in their last version of the day, with the category and reason given by alert_classification_rules."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [alert_id]
+        warn_unsupported: false
+    columns:
+      - name: date
+        description: "Fetch day of the snapshots (Europe/Paris)."
+        data_type: date
+        data_tests: [not_null]
+      - name: alert_id
+        data_type: varchar
+        data_tests: [unique, not_null]
+      - name: cause
+        description: "GTFS-RT cause, null when the SNCF did not set it."
+        data_type: varchar
+      - name: header_text
+        description: "French header, cleaned of its HTML."
+        data_type: varchar
+      - name: description_text
+        description: "French description, cleaned of its HTML."
+        data_type: varchar
+      - name: active_periods
+        description: "Periods the alert is active in (UTC); a null start or end means open on that side."
+        data_type: 'STRUCT("start" TIMESTAMP, "end" TIMESTAMP)[]'
+      - name: informed_entities
+        description: "Targets of the alert; trip_id is a train number (e.g. OCESN862402F), not a GTFS trip_id."
+        data_type: "STRUCT(trip_id VARCHAR, route_id VARCHAR, stop_id VARCHAR)[]"
+      - name: fetched_at
+        description: "Time of the snapshot the alert version comes from (UTC)."
+        data_type: timestamp
+        data_tests: [not_null]
+      - name: rule_id
+        description: "Rule that labelled the alert, null when none matched."
+        data_type: varchar
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('alert_classification_rules')
+                field: rule_id
+      - name: category
+        data_type: varchar
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['travaux', 'incident', 'information_voyageur', 'autre']
+      - name: reason
+        description: "Reason shown in the dashboards, null for the 'autre' category."
+        data_type: varchar

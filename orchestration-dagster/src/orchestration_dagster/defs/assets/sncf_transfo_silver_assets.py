@@ -6,6 +6,7 @@ import polars as pl
 from data_eng.sncf_transformer import (
     extract_gtfs_files,
     gtfs_csv_to_dataframe,
+    sncf_service_alerts_protobuf_to_sheets,
     sncf_trip_updates_protobuf_to_sheets,
 )
 from data_eng.utils.s3_connector import get_folder_content_from_s3, get_object_from_s3
@@ -170,4 +171,69 @@ def sncf_silver_continue_data(
             )
             rows += trips_updates_df.height
 
+    return dg.MaterializeResult(metadata={"rows": rows, "s3_path": silver_folder})
+
+
+@dg.asset(partitions_def=daily_partitions, deps=["sncf_bronze_service_alerts_data"])
+def sncf_silver_alerts_data(
+    context: dg.AssetExecutionContext, s3_resource: S3_Resource
+):
+    """Convert SNCF service alerts snapshots (protobuf) into silver Parquet files.
+
+    Alerts have no service date (their active period can span weeks), so
+    silver keeps the bronze organisation by fetch day: each bronze snapshot
+    of the partition day becomes one Parquet file with one row per alert.
+    The same alert is repeated in every snapshot it appears in; picking its
+    last version is left to the warehouse.
+
+    Files are written under deterministic names, so processing a partition
+    again only overwrites them.
+
+    Args:
+    context: Dagster execution context, provides the partition key
+        (date) and the logger.
+    s3_resource: Dagster resource exposing the S3 client and target
+        bucket.
+
+    """
+    ALERTS_DATA_FOLDER = "data/{layer}/alerts/"
+
+    fetch_day = datetime.strptime(context.partition_key, "%Y-%m-%d").date()
+    bronze_folder = ALERTS_DATA_FOLDER.format(layer="bronze") + fetch_day.strftime(
+        "year=%Y/month=%m/day=%d/"
+    )
+    silver_folder = ALERTS_DATA_FOLDER.format(layer="silver") + f"date={fetch_day}/"
+
+    s3_client = s3_resource.get_client()
+    s3_bucket_name = s3_resource.bucket_name
+
+    rows = 0
+    for filename in get_folder_content_from_s3(
+        s3_client=s3_client,
+        bucket_name=s3_bucket_name,
+        folder=bronze_folder,
+    ):
+        alerts_df = sncf_service_alerts_protobuf_to_sheets(
+            get_object_from_s3(
+                s3_client=s3_client,
+                bucket=s3_bucket_name,
+                filepath=bronze_folder + filename,
+            )
+        )
+
+        if alerts_df.is_empty():
+            continue
+
+        parquet_buffer = BytesIO()
+        alerts_df.write_parquet(parquet_buffer)
+        parquet_buffer.seek(0)
+
+        s3_client.upload_fileobj(
+            parquet_buffer,
+            s3_bucket_name,
+            silver_folder + f"{filename.split('.')[0]}.parquet",
+        )
+        rows += alerts_df.height
+
+    context.log.info(f"{rows} alert rows written to {silver_folder}")
     return dg.MaterializeResult(metadata={"rows": rows, "s3_path": silver_folder})
