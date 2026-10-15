@@ -18,19 +18,28 @@ This document describes the definitions and rules used to build the punctuality 
 To get the train number from a GTFS `trip_id`, cut it after the first letter that follows the digits:
 `OCESN862402F1187_F:TER:…` → `OCESN862402F`.
 
+Announced trains are built by [`int_planned_trains`](../dbt_data_pipeline/models/intermediate/int_planned_trains.sql), one row per train of the run date with its [train status](#train-status). ✅ It is the denominator of the indicators: the real-time feed and the alerts only mention trains with something to report. `trips` and `calendar_dates` are joined within each GTFS version, and `calendar_dates` is read with `hive_partitioning = false`: otherwise DuckDB replaces its `date` column (service day) with the `date=` folder value.
+
 ## 2. Indicators
 
 | # | Indicator | Rule | Status |
 | --- | --- | --- | --- |
-| 1 | Delay volume | Sum of the arrival delay at the **terminus**. The terminus is the last stop of the theoretical GTFS, not of the real-time feed. Early arrivals count as 0: `GREATEST(delay, 0)`. The last known delay is used. Cancelled and unobserved trains are excluded. | 🟡 |
+| 1 | Delay volume | Sum of the arrival delay at the **effective terminus**: the last stop actually served (not `SKIPPED`). A train whose planned terminus is skipped is still counted, at its effective terminus, and flagged `is_limited` for the future partial-cancellation view. Early arrivals count as 0: `GREATEST(delay, 0)`. The last known delay is used. Cancelled and unobserved trains are excluded. Trains added in real time (`ADDED`, not in the GTFS) are included. | 🟡 |
 | 2a | Deprogrammed trains | Deprogrammed trains / announced trains (see [train status](#train-status)). | 🟡 |
 | 2b | Cancelled trains | Late-cancelled trains / announced trains. Only **full cancellations** count. A train never seen in the real-time feed is **unobserved**, not cancelled. | 🟡 |
 | 2c | Removed trains | (Deprogrammed + late-cancelled trains) / announced trains. Same denominator as 2a and 2b, so 2c = 2a + 2b. | 🟡 |
-| 3 | Worst lines, delay | Top 5 lines by indicator 1. | 🟡 |
+| 3 | Worst lines, delay | Top 5 lines by indicator 1. Trains added in real time have no line (the real-time feed never sends `route_id`): they are grouped under an unknown line. | 🟡 |
 | 4 | Worst lines, cancellations | Top 5 lines by number of trains from indicator 2b. | 🟡 |
 | 5 | Problem breakdown | Trains affected per alert category. A train affected by two categories counts in both, so the chart is a **bar chart**, not a pie chart. `information_voyageur` is handled separately. | 🟡 |
 | 6 | Incidents | Top 5 incident reasons, by number of affected trains. | 🟡 |
 | 7 | Works | Top 5 lines, by number of trains affected by works. | 🟡 |
+
+Daily counts per line are stored in [`agg_daily_route`](../dbt_data_pipeline/models/warehouse/agg_daily_route.sql) ✅: only counts and sums (announced, late-cancelled, deprogrammed, added trains, delay at the effective terminus...). A week is the sum of its days, and rates are computed when reading, as a ratio of sums (e.g. indicator 2b of a week = Σ late-cancelled / Σ announced), so that days with few trains do not weigh as much as busy ones.
+
+Weekly views are created in BigQuery by [`create_weekly_views.sql`](../bigquery/create_weekly_views.sql) ✅:
+
+- `gold.weekly_network`: whole network per ISO week, with `days_in_week`, `is_complete_week` (7 days present) and `min_daily_observed_share` (lowest daily share of announced trains seen in real time) to spot and remove incomplete weeks.
+- `gold.weekly_route`: per line and week, with the ranks of the worst-lines visuals (`delay_rank`, `late_cancelled_rank`), the values of the week before and `weeks_in_lead_*`, the number of consecutive weeks the line has been first. Trains added in real time (null line) are not ranked.
 
 Common rules:
 
@@ -39,13 +48,15 @@ Common rules:
 
 ### Train status
 
-The GTFS removes trains before their service day: a train announced in one version can be missing from the next ones. Each train gets a status from the GTFS version where it disappears. 🟡
+The GTFS removes trains before their service day: a train announced in one version can be missing from the next ones. Each train gets a status from the GTFS version where it disappears. ✅
 
 | Status | Rule |
 | --- | --- |
 | **Planned** | In the GTFS of day D. |
 | **Late-cancelled** | Removed from the GTFS less than 3 days before D (missing from the D-2, D-1 or D version while an older one had it), **or** last real-time status = `CANCELED`. |
 | **Deprogrammed** | Removed from the GTFS 3 days or more before D. |
+
+The real-time feed wins over the GTFS: a train removed from the GTFS but seen running in the real-time feed is **planned** (it ran). Trains are stored in [`fact_trip_runs`](../dbt_data_pipeline/models/warehouse/fact_trip_runs.sql), one row per announced or added train, with `train_status`, `is_observed`, `is_cancelled`, `is_limited` and the raw delay at the effective terminus. ✅
 
 Trains are looked up in the **30 GTFS versions** before D. **Announced trains** = every train of day D found in at least one of these versions (planned + late-cancelled + deprogrammed): the denominator of indicators 2a, 2b and 2c.
 
@@ -135,6 +146,8 @@ Points of attention:
 | --- | --- | --- |
 | Works alerts only have a broad period (e.g. weekends only, but active from 10/09 to 24/10) | Trains affected by works are overestimated. In the example: 564 trains counted, about 90 actually affected | Ticket: extract the dates from the text |
 | The real-time feed is not exhaustive | Some trains are unobserved | Track the share of unobserved trains |
+| Trains added in real time (`ADDED`) have no line | Their delay (5.9% of the cumulative delay on 12/10/2026 morning) is missing from the per-line indicators | Infer the line from their stops |
+| Collection gaps | On 12/10/2026, real-time snapshots stop at 11:43 (Paris time): that day's indicators are incomplete | Monitor the number of snapshots per day |
 
 ## 6. Open questions ❓
 

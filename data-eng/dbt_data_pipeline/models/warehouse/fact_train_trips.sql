@@ -1,7 +1,7 @@
 {#-
     Written to {external_root}/fact_train_trips/date=YYYY-MM-DD/data_0.parquet.
     overwrite_or_ignore only replaces the partitions written by this run
-    ('overwrite' would wipe every other date), so each run must only emit
+    ("overwrite" would wipe every other date), so each run must only emit
     rows for its own date: see the start_date filter below.
 -#}
 {{
@@ -34,7 +34,7 @@ WITH snapshots_agg AS (
         MAX(fetched_at)                 AS last_fetched_at,
     FROM {{ source("silver", "trip_updates") }}
     -- Silver is already stored by service date; this guards the partition
-    -- overwrite: rows of another date would replace that date's data.
+    -- overwrite: rows of another date would replace the data of that date.
     WHERE start_date = {{ run_date() }}
     GROUP BY trip_id, stop_id, start_date
 )

@@ -1,15 +1,29 @@
 version: 1
 
-# All silver data of a run is read for one date: the `today` var, set by
-# Dagster from the partition key.
+# Silver data of a run is read for one date, the `today` var set by Dagster
+# from the partition key, except the GTFS tables read over several versions.
 sources:
   - name: silver
     tables:
+      # Every GTFS version (date=*): int_planned_trains looks for trains in the
+      # last 30 versions. filename = true gives the version of each row (see the
+      # gtfs_version macro); filtering on it makes DuckDB read only the files of
+      # the versions kept.
       - name: trips
+        description: "Trips of every theoretical GTFS version, with the file name holding the version date."
         meta:
-          external_location: "s3://sncf-bucket/data/silver/theory/date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/trips.parquet"
+          external_location: "read_parquet('s3://sncf-bucket/data/silver/theory/date=*/trips.parquet', hive_partitioning = false, filename = true)"
           dagster:
             asset_key: ["sncf_silver_theoretical_data", "trips"]
+
+      - name: calendar_dates
+        description: "Days each service_id runs on, for every theoretical GTFS version, with the file name holding the version date."
+        meta:
+          # hive_partitioning = false: otherwise DuckDB replaces the file's
+          # `date` column (service day) with the `date=` folder value.
+          external_location: "read_parquet('s3://sncf-bucket/data/silver/theory/date=*/calendar_dates.parquet', hive_partitioning = false, filename = true)"
+          dagster:
+            asset_key: ["sncf_silver_theoretical_data", "calendar_dates"]
 
       - name: routes
         meta:
