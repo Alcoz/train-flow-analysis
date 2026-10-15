@@ -228,6 +228,177 @@ models:
         data_type: date
         data_tests: [not_null]
 
+  - name: fact_trip_runs
+    description: "One row per train of the service date: announced trains (int_planned_trains) and trains added in real time, with their status, observation and delay at the effective terminus."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [trip_id, date]
+        warn_unsupported: false
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [trip_id, date]
+    columns:
+      - name: date
+        description: "Service day."
+        data_type: date
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_dates')
+                field: date_day
+      - name: trip_id
+        description: "GTFS trip_id, or real-time trip_id for trains added in real time."
+        data_type: varchar
+        data_tests: [not_null]
+      - name: train_number
+        description: "Identifier used by alerts ('OCESN862402F')."
+        data_type: varchar
+      - name: route_id
+        description: "Line of the train; null for trains added in real time (the feed never sends route_id)."
+        data_type: varchar
+      - name: train_status
+        description: "planned, late_cancelled (removed from the GTFS less than 3 days before, or CANCELED in real time), deprogrammed (removed earlier) or added (only in the real-time feed)."
+        data_type: varchar
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['planned', 'late_cancelled', 'deprogrammed', 'added']
+      - name: gtfs_status
+        description: "Status from int_planned_trains, null for trains added in real time."
+        data_type: varchar
+      - name: realtime_status
+        description: "Trip schedule_relationship in the last real-time snapshot (SCHEDULED, CANCELED, ADDED), null when not observed."
+        data_type: varchar
+      - name: is_observed
+        description: "The train is in the real-time feed."
+        data_type: boolean
+        data_tests: [not_null]
+      - name: is_cancelled
+        description: "Removed from the GTFS before the day or CANCELED in real time."
+        data_type: boolean
+        data_tests: [not_null]
+      - name: is_limited
+        description: "The train ran but its planned terminus was skipped."
+        data_type: boolean
+        data_tests: [not_null]
+      - name: terminus_stop_id
+        description: "Effective terminus: last stop actually served."
+        data_type: varchar
+      - name: terminus_arrival_delay
+        description: "Arrival delay at the effective terminus in the last snapshot, in seconds; negative when early."
+        data_type: bigint
+      - name: last_fetched_at
+        description: "Time of the last real-time snapshot of the train (UTC)."
+        data_type: timestamp
+
+  - name: agg_daily_route
+    description: "Daily counts per line from fact_trip_runs. Only counts and sums: weeks are sums of days and rates are computed when reading. Trains added in real time are under a null route_id."
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [date, route_id]
+    columns:
+      - name: date
+        description: "Service day."
+        data_type: date
+        data_tests: [not_null]
+      - name: route_id
+        description: "Line; null for trains added in real time."
+        data_type: varchar
+      - name: announced_trains
+        description: "Trains in at least one of the last 30 GTFS versions: denominator of the cancellation indicators."
+        data_type: bigint
+        data_tests: [not_null]
+      - name: planned_trains
+        description: "Announced trains that ran or were not cancelled."
+        data_type: bigint
+        data_tests: [not_null]
+      - name: late_cancelled_trains
+        description: "Removed from the GTFS less than 3 days before, or CANCELED in real time (indicator 2b)."
+        data_type: bigint
+        data_tests: [not_null]
+      - name: deprogrammed_trains
+        description: "Removed from the GTFS 3 days or more before (indicator 2a)."
+        data_type: bigint
+        data_tests: [not_null]
+      - name: added_trains
+        description: "Trains only in the real-time feed (not announced)."
+        data_type: bigint
+        data_tests: [not_null]
+      - name: observed_trains
+        description: "Trains seen in the real-time feed."
+        data_type: bigint
+        data_tests: [not_null]
+      - name: limited_trains
+        description: "Trains that ran without reaching their planned terminus."
+        data_type: bigint
+        data_tests: [not_null]
+      - name: delay_measured_trains
+        description: "Trains that ran with a delay at their effective terminus."
+        data_type: bigint
+        data_tests: [not_null]
+      - name: terminus_delay_seconds
+        description: "Sum of the delays at the effective terminus, early arrivals counted as 0 (indicator 1)."
+        data_type: bigint
+        data_tests: [not_null]
+
+  - name: int_planned_trains
+    description: "Trains announced for the run date (in at least one of the last 30 GTFS versions), with their GTFS status. Denominator of the cancellation indicators and join target of the alerts."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [trip_id, date]
+        warn_unsupported: false
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [trip_id, date]
+      # Alerts only give a train number: it must point to one train per day.
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [train_number, date]
+          config:
+            severity: warn
+    columns:
+      - name: date
+        description: "Service day."
+        data_type: date
+        data_tests: [not_null]
+      - name: train_number
+        description: "trip_id cut after the letter that follows the digits ('OCESN862402F'): the identifier used by alerts."
+        data_type: varchar
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: trip_id
+        description: "trip_id in the last GTFS version announcing the train."
+        data_type: varchar
+        data_tests: [not_null]
+      - name: route_id
+        description: "route_id in the last GTFS version announcing the train."
+        data_type: varchar
+        data_tests: [not_null]
+      - name: last_gtfs_version
+        description: "Last GTFS version (publication day) announcing the train."
+        data_type: date
+        data_tests: [not_null]
+      - name: gtfs_status
+        description: "planned (in the GTFS of the day), late_cancelled (removed less than 3 days before) or deprogrammed (removed earlier)."
+        data_type: varchar
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['planned', 'late_cancelled', 'deprogrammed']
   - name: int_alerts
     description: "Service alerts present in the feed on the run date, in their last version of the day, with the category and reason given by alert_classification_rules."
     config:

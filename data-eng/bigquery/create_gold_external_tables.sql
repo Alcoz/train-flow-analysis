@@ -28,6 +28,22 @@ OPTIONS (
   hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_train_trips'
 );
 
+CREATE OR REPLACE EXTERNAL TABLE gold.fact_trip_runs
+WITH PARTITION COLUMNS (date DATE)
+OPTIONS (
+  format = 'PARQUET',
+  uris = ['gs://sncf-bucket/data/gold/fact_trip_runs/*'],
+  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_trip_runs'
+);
+
+CREATE OR REPLACE EXTERNAL TABLE gold.agg_daily_route
+WITH PARTITION COLUMNS (date DATE)
+OPTIONS (
+  format = 'PARQUET',
+  uris = ['gs://sncf-bucket/data/gold/agg_daily_route/*'],
+  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/agg_daily_route'
+);
+
 CREATE OR REPLACE EXTERNAL TABLE gold.dim_trips
 WITH PARTITION COLUMNS (date DATE)
 OPTIONS (

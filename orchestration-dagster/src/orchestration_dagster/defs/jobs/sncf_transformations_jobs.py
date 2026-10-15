@@ -11,9 +11,12 @@ sncf_medaillon_pipeline_job = dg.define_asset_job(
         | dg.AssetSelection.assets("dim_routes")
         | dg.AssetSelection.assets("dim_stops")
         | dg.AssetSelection.assets("dim_trips")
+        | dg.AssetSelection.assets("int_planned_trains")
         | dg.AssetSelection.assets("alert_classification_rules")
         | dg.AssetSelection.assets("int_alerts")
         | dg.AssetSelection.assets("fact_train_trips")
+        | dg.AssetSelection.assets("fact_trip_runs")
+        | dg.AssetSelection.assets("agg_daily_route")
     ),
     partitions_def=daily_partitions,
 )

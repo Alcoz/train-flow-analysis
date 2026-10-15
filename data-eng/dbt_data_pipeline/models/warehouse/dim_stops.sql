@@ -1,7 +1,7 @@
 {#-
     One snapshot of the theoretical stops per day, written to
     {external_root}/dim_stops/date=YYYY-MM-DD/. Rebuilding a date
-    only replaces that date's partition.
+    only replaces the partition of that date.
 -#}
 {{
     config(

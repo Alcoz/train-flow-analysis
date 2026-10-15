@@ -3,7 +3,7 @@
     category and reason from the alert_classification_rules seed.
     The SNCF edits alerts over time (it removes the numbers of trains that
     have passed), so the version kept is the one of the last snapshot of the
-    day: it is what the alert said about that day's trains.
+    day: it is what the alert said about the trains of that day.
     Kept in the in-memory DuckDB of the run, not written to Gold.
 -#}
 {{
