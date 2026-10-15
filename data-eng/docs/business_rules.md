@@ -30,9 +30,9 @@ Announced trains are built by [`int_planned_trains`](../dbt_data_pipeline/models
 | 2c | Removed trains | (Deprogrammed + late-cancelled trains) / announced trains. Same denominator as 2a and 2b, so 2c = 2a + 2b. | 🟡 |
 | 3 | Worst lines, delay | Top 5 lines by indicator 1. Trains added in real time have no line (the real-time feed never sends `route_id`): they are grouped under an unknown line. | 🟡 |
 | 4 | Worst lines, cancellations | Top 5 lines by number of trains from indicator 2b. | 🟡 |
-| 5 | Problem breakdown | Trains affected per alert category. A train affected by two categories counts in both, so the chart is a **bar chart**, not a pie chart. `information_voyageur` is handled separately. | 🟡 |
-| 6 | Incidents | Top 5 incident reasons, by number of affected trains. | 🟡 |
-| 7 | Works | Top 5 lines, by number of trains affected by works. | 🟡 |
+| 5 | Problem breakdown | Trains affected per alert category. A train affected by two categories counts in both, so the chart is a **bar chart**, not a pie chart. `information_voyageur` is handled separately. | ✅ |
+| 6 | Incidents | Top 5 incident reasons, by number of affected trains. | ✅ |
+| 7 | Works | Top 5 lines, by number of trains affected by works. | ✅ |
 
 Daily counts per line are stored in [`agg_daily_route`](../dbt_data_pipeline/models/warehouse/agg_daily_route.sql) ✅: only counts and sums (announced, late-cancelled, deprogrammed, added trains, delay at the effective terminus...). A week is the sum of its days, and rates are computed when reading, as a ratio of sums (e.g. indicator 2b of a week = Σ late-cancelled / Σ announced), so that days with few trains do not weigh as much as busy ones.
 
@@ -40,6 +40,8 @@ Weekly views are created in BigQuery by [`create_weekly_views.sql`](../bigquery/
 
 - `gold.weekly_network`: whole network per ISO week, with `days_in_week`, `is_complete_week` (7 days present) and `min_daily_observed_share` (lowest daily share of announced trains seen in real time) to spot and remove incomplete weeks.
 - `gold.weekly_route`: per line and week, with the ranks of the worst-lines visuals (`delay_rank`, `late_cancelled_rank`), the values of the week before and `weeks_in_lead_*`, the number of consecutive weeks the line has been first. Trains added in real time (null line) are not ranked.
+
+Indicators 5 to 7 come from the views `gold.weekly_disruption_categories`, `gold.weekly_incident_reasons` and `gold.weekly_works_routes` ✅. They count distinct trains, which cannot be added up across categories or reasons (a train can be affected by several alerts), so they read `fact_trip_disruptions` directly instead of a daily aggregate. On 12/10/2026 morning: 2,773 trains affected by works, 574 by incidents and 82 by `autre`, but 3,236 distinct trains in total.
 
 Common rules:
 
@@ -122,7 +124,7 @@ Measured on 5,413 alerts from 07/10 to 15/10/2026: incident 79.9%, passenger inf
 
 ## 4. Linking alerts to trains
 
-An alert lists **train numbers** and **a single active period**. It does not say on which day each number is affected. 🟡
+An alert lists **train numbers** and **a single active period**. It does not say on which day each number is affected. ✅ Implemented in [`fact_trip_disruptions`](../dbt_data_pipeline/models/warehouse/fact_trip_disruptions.sql), one row per alert and affected train; active periods (UTC) are converted to Paris time before checking that they overlap day D.
 
 **Rule:** a train of day D is affected by an alert when, **in the last snapshot of day D**, the alert lists its number **and** D falls within the alert's active period.
 

@@ -44,6 +44,14 @@ OPTIONS (
   hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/agg_daily_route'
 );
 
+CREATE OR REPLACE EXTERNAL TABLE gold.fact_trip_disruptions
+WITH PARTITION COLUMNS (date DATE)
+OPTIONS (
+  format = 'PARQUET',
+  uris = ['gs://sncf-bucket/data/gold/fact_trip_disruptions/*'],
+  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_trip_disruptions'
+);
+
 CREATE OR REPLACE EXTERNAL TABLE gold.dim_trips
 WITH PARTITION COLUMNS (date DATE)
 OPTIONS (

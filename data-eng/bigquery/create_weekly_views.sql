@@ -169,3 +169,97 @@ LEFT JOIN delay_leaders AS d
   ON r.week_start = d.week_start AND r.route_id = d.route_id
 LEFT JOIN late_cancelled_leaders AS c
   ON r.week_start = c.week_start AND r.route_id = c.route_id;
+
+
+-- Disruption views (indicators 5 to 7), on top of gold.fact_trip_disruptions.
+-- They count distinct trains (trip_id and date): a train affected by several
+-- alerts counts once per category, reason or line. These counts cannot be
+-- added up across categories or reasons, so the views read the fact table
+-- instead of a daily aggregate.
+
+-- Indicator 5: trains affected per category and ISO week. A train affected by
+-- two categories counts in both: bars, not a pie chart. all_disruptions_trains
+-- is the number of distinct trains affected by travaux, incident or autre.
+CREATE OR REPLACE VIEW gold.weekly_disruption_categories AS
+WITH trains AS (
+  SELECT DISTINCT
+    DATE_TRUNC(date, ISOWEEK) AS week_start,
+    category,
+    trip_id,
+    date
+  FROM gold.fact_trip_disruptions
+)
+SELECT
+  t.week_start,
+  w.is_complete_week,
+  t.category,
+  COUNT(*) AS affected_trains,
+  a.all_disruptions_trains
+FROM trains AS t
+LEFT JOIN (
+  SELECT week_start, COUNT(DISTINCT CONCAT(trip_id, '|', CAST(date AS STRING))) AS all_disruptions_trains
+  FROM trains
+  WHERE category <> 'information_voyageur'
+  GROUP BY week_start
+) AS a
+  ON t.week_start = a.week_start
+LEFT JOIN gold.weekly_network AS w
+  ON t.week_start = w.week_start
+GROUP BY t.week_start, w.is_complete_week, t.category, a.all_disruptions_trains;
+
+
+-- Indicator 6: trains affected per incident reason and ISO week, with the
+-- rank of the reason in the week (1 = most trains).
+CREATE OR REPLACE VIEW gold.weekly_incident_reasons AS
+WITH weekly AS (
+  SELECT
+    DATE_TRUNC(date, ISOWEEK) AS week_start,
+    reason,
+    COUNT(DISTINCT CONCAT(trip_id, '|', CAST(date AS STRING))) AS affected_trains
+  FROM gold.fact_trip_disruptions
+  WHERE category = 'incident'
+  GROUP BY week_start, reason
+)
+SELECT
+  r.*,
+  w.is_complete_week,
+  RANK() OVER (PARTITION BY r.week_start ORDER BY r.affected_trains DESC) AS reason_rank
+FROM weekly AS r
+LEFT JOIN gold.weekly_network AS w
+  ON r.week_start = w.week_start;
+
+
+-- Indicator 7: trains affected by works per line and ISO week, with the rank
+-- of the line in the week. Trains added in real time (null line) are not ranked.
+CREATE OR REPLACE VIEW gold.weekly_works_routes AS
+WITH weekly AS (
+  SELECT
+    DATE_TRUNC(date, ISOWEEK) AS week_start,
+    route_id,
+    COUNT(DISTINCT CONCAT(trip_id, '|', CAST(date AS STRING))) AS affected_trains
+  FROM gold.fact_trip_disruptions
+  WHERE category = 'travaux'
+  GROUP BY week_start, route_id
+),
+
+routes AS (
+  SELECT route_id, route_short_name, route_long_name
+  FROM gold.dim_routes
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY route_id ORDER BY date DESC) = 1
+)
+
+SELECT
+  r.week_start,
+  w.is_complete_week,
+  r.route_id,
+  n.route_short_name,
+  n.route_long_name,
+  r.affected_trains,
+  IF(r.route_id IS NULL, NULL,
+    RANK() OVER (PARTITION BY r.week_start, r.route_id IS NULL ORDER BY r.affected_trains DESC))
+    AS works_rank
+FROM weekly AS r
+LEFT JOIN gold.weekly_network AS w
+  ON r.week_start = w.week_start
+LEFT JOIN routes AS n
+  ON r.route_id = n.route_id;
