@@ -1,0 +1,22 @@
+type: dagster_dbt.DbtProjectComponent
+
+# Second component on the same dbt project: a dbt component is a single
+# multi-asset, with a single partitions definition. Alert models are only
+# built from 2026-10-07, when alerts started to be collected.
+template_vars_module: .template_vars
+attributes:
+  project: '{{ context.project_root }}/../data-eng/dbt_data_pipeline'
+  # Distinct op names: both components run the same dbt project
+  op:
+    name: dbt_alerts
+  select: "tag:alerts"
+  cli_args:
+    - build
+    - --vars:
+        today: "{{ partition_key }}"
+
+post_processing:
+  assets:
+    - target: "*"
+      attributes:
+        partitions_def: "{{ alerts_partitions }}"

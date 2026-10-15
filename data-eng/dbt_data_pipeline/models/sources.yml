@@ -37,10 +37,13 @@ sources:
           dagster:
             asset_key: ["sncf_silver_theoretical_data", "stops"]
 
+      # Every fetch day (date=*), filtered on the file name by fact_alerts: a
+      # glob on a single day would fail before 2026-10-07, when alerts were
+      # not collected yet, instead of returning no rows.
       - name: alerts
-        description: "Service alerts snapshots fetched on the run date, one row per alert and snapshot."
+        description: "Service alerts snapshots of every fetch day, one row per alert and snapshot, with the file name holding the fetch day."
         meta:
-          external_location: "read_parquet('s3://sncf-bucket/data/silver/alerts/date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/*.parquet', hive_partitioning = false)"
+          external_location: "read_parquet('s3://sncf-bucket/data/silver/alerts/date=*/*.parquet', hive_partitioning = false, filename = true)"
           dagster:
             asset_key: ["sncf_silver_alerts_data"]
 

@@ -30,7 +30,7 @@ def test_purge_keeps_other_jobs_and_unfinished_runs():
     with dg.instance_for_test() as instance:
         daily_run = create_run_for_test(
             instance,
-            job_name="sncf_data_preparation_job",
+            job_name="sncf_delay_preparation_job",
             status=dg.DagsterRunStatus.SUCCESS,
         )
         running_run = create_run_for_test(

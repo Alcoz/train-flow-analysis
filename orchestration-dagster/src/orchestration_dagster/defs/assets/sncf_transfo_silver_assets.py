@@ -10,7 +10,7 @@ from data_eng.sncf_transformer import (
     sncf_trip_updates_protobuf_to_sheets,
 )
 from data_eng.utils.s3_connector import get_folder_content_from_s3, get_object_from_s3
-from orchestration_dagster.defs.partitions import daily_partitions
+from orchestration_dagster.defs.partitions import alerts_partitions, daily_partitions
 from orchestration_dagster.defs.resources import S3_Resource
 
 # GTFS tables converted to silver. None is mandatory: a table missing from
@@ -174,7 +174,7 @@ def sncf_silver_continue_data(
     return dg.MaterializeResult(metadata={"rows": rows, "s3_path": silver_folder})
 
 
-@dg.asset(partitions_def=daily_partitions, deps=["sncf_bronze_service_alerts_data"])
+@dg.asset(partitions_def=alerts_partitions, deps=["sncf_bronze_service_alerts_data"])
 def sncf_silver_alerts_data(
     context: dg.AssetExecutionContext, s3_resource: S3_Resource
 ):

@@ -4,18 +4,27 @@
     The SNCF edits alerts over time (it removes the numbers of trains that
     have passed), so the version kept is the one of the last snapshot of the
     day: it is what the alert said about the trains of that day.
-    Kept in the in-memory DuckDB of the run, not written to Gold.
+    Written to {external_root}/fact_alerts/date=YYYY-MM-DD/data_0.parquet, so
+    that fact_trip_disruptions, built by another job, can read it.
+    overwrite_or_ignore only replaces the partition of this run.
 -#}
 {{
     config(
-        materialized='table',
-        tags=["daily"]
+        materialized='external',
+        options={
+            "partition_by": "date",
+            "overwrite_or_ignore": True
+        },
+        tags=["alerts"]
     )
 }}
 
 WITH last_snapshot AS (
     SELECT *
     FROM {{ source("silver", "alerts") }}
+    -- Snapshots fetched on the run date; filtering on the file name only
+    -- reads the files of that day. No rows before alerts were collected.
+    WHERE regexp_extract(filename, 'date=([0-9-]+)/', 1)::DATE = {{ run_date() }}
     QUALIFY row_number() OVER (PARTITION BY alert_id ORDER BY fetched_at DESC) = 1
 ),
 

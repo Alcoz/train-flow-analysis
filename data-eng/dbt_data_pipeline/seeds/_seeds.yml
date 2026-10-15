@@ -8,8 +8,8 @@ seeds:
       (ties broken by rule_id). Root causes (people on tracks, animals, weather)
       have a lower priority than their consequences (signalling, power supply).
     config:
-      # Loaded in every daily run: the run's DuckDB is in memory
-      tags: ["daily"]
+      # Loaded in every alerts run: the DuckDB of a run is in memory
+      tags: ["alerts"]
       column_types:
         rule_id: varchar
         priority: integer

@@ -3,6 +3,9 @@ type: dagster_dbt.DbtProjectComponent
 template_vars_module: .template_vars
 attributes:
   project: '{{ context.project_root }}/../data-eng/dbt_data_pipeline'
+  # Distinct op names: both components run the same dbt project
+  op:
+    name: dbt_delay
   select: "tag:daily"
   cli_args:
     - build

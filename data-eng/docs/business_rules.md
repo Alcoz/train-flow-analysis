@@ -82,7 +82,7 @@ The standard `cause` and `effect` fields of the alerts carry almost no informati
 - `cause` only takes two values: `MAINTENANCE` (reliable for works) and `OTHER_CAUSE` ("something else"). It is missing for about 12% of alerts.
 
 Classification is therefore based on the alert **text**, using the rules table [`alert_classification_rules.csv`](../dbt_data_pipeline/seeds/alert_classification_rules.csv). ✅
-The rules are applied by [`int_alerts`](../dbt_data_pipeline/models/intermediate/int_alerts.sql), to the last version of the day of each alert present in the feed. ✅
+The rules are applied by [`fact_alerts`](../dbt_data_pipeline/models/warehouse/fact_alerts.sql), to the last version of the day of each alert present in the feed. ✅
 
 ### How it works
 
