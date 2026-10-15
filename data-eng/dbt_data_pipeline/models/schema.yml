@@ -349,6 +349,52 @@ models:
         data_type: bigint
         data_tests: [not_null]
 
+  - name: fact_trip_disruptions
+    description: "One row per alert and affected train of the service date: the alert lists the train number in its last version of the day, and the day falls within one of its active periods."
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [alert_id, trip_id, date]
+        warn_unsupported: false
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [alert_id, trip_id, date]
+    columns:
+      - name: date
+        description: "Service day."
+        data_type: date
+        data_tests: [not_null]
+      - name: alert_id
+        data_type: varchar
+        data_tests: [not_null]
+      - name: trip_id
+        description: "trip_id of the train in fact_trip_runs."
+        data_type: varchar
+        data_tests: [not_null]
+      - name: train_number
+        description: "Train number listed by the alert ('OCESN862402F')."
+        data_type: varchar
+        data_tests: [not_null]
+      - name: route_id
+        description: "Line of the train; null for trains added in real time."
+        data_type: varchar
+      - name: train_status
+        description: "Status of the train in fact_trip_runs (planned, late_cancelled, deprogrammed, added)."
+        data_type: varchar
+        data_tests: [not_null]
+      - name: category
+        description: "Alert category: travaux, incident, information_voyageur or autre."
+        data_type: varchar
+        data_tests: [not_null]
+      - name: reason
+        description: "Alert reason; null for the autre category."
+        data_type: varchar
+      - name: rule_id
+        description: "Classification rule of the alert, null when none matched."
+        data_type: varchar
+
   - name: int_planned_trains
     description: "Trains announced for the run date (in at least one of the last 30 GTFS versions), with their GTFS status. Denominator of the cancellation indicators and join target of the alerts."
     config:
