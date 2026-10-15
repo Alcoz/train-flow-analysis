@@ -1,11 +1,13 @@
 import io
 import zipfile
+from datetime import datetime
 
 import polars as pl
 import pytest
 from data_eng.sncf_transformer import (
     extract_gtfs_files,
     gtfs_csv_to_dataframe,
+    sncf_service_alerts_protobuf_to_sheets,
     sncf_trip_updates_protobuf_to_sheets,
 )
 from google.transit import gtfs_realtime_pb2
@@ -122,3 +124,67 @@ def test_trip_updates_stop_position():
         ("T2", "A", 0),
         ("T2", "B", 1),
     ]
+
+
+def _alerts_feed():
+    feed = gtfs_realtime_pb2.FeedMessage()
+    feed.header.gtfs_realtime_version = "1.0"
+    feed.header.timestamp = 1_790_000_000
+    return feed
+
+
+def test_service_alerts_absent_cause_is_null():
+    """A cause or effect the SNCF did not set stays null, not UNKNOWN_CAUSE."""
+    feed = _alerts_feed()
+    feed.entity.add(id="A1").alert.cause = gtfs_realtime_pb2.Alert.MAINTENANCE
+    feed.entity.add(id="A2").alert.effect = gtfs_realtime_pb2.Alert.UNKNOWN_EFFECT
+
+    df = sncf_service_alerts_protobuf_to_sheets(feed.SerializeToString())
+
+    assert df.select("alert_id", "cause", "effect").rows() == [
+        ("A1", "MAINTENANCE", None),
+        ("A2", None, "UNKNOWN_EFFECT"),
+    ]
+
+
+def test_service_alerts_french_text_without_html():
+    """The French translation is kept, cleaned of its HTML."""
+    feed = _alerts_feed()
+    alert = feed.entity.add(id="A1").alert
+    alert.header_text.translation.add(text="Delayed train", language="en")
+    alert.header_text.translation.add(text="Train retardé", language="fr")
+    alert.description_text.translation.add(
+        text="<p>Cause :&nbsp;panne</p>\n<p>de train</p>", language="fr"
+    )
+
+    df = sncf_service_alerts_protobuf_to_sheets(feed.SerializeToString())
+
+    assert df.select("header_text", "description_text").row(0) == (
+        "Train retardé",
+        "Cause : panne de train",
+    )
+
+
+def test_service_alerts_periods_and_entities():
+    """Periods and targeted trains are kept as lists, unset values as null."""
+    feed = _alerts_feed()
+    alert = feed.entity.add(id="A1").alert
+    alert.active_period.add(start=1_790_000_000, end=1_790_003_600)
+    alert.active_period.add(start=1_790_100_000)  # no end: open period
+    alert.informed_entity.add().trip.trip_id = "OCESN862402F"
+    alert.informed_entity.add(stop_id="StopArea:OCE87391003")
+
+    df = sncf_service_alerts_protobuf_to_sheets(feed.SerializeToString())
+
+    assert df["active_periods"].to_list()[0] == [
+        {
+            "start": datetime(2026, 9, 21, 14, 13, 20),
+            "end": datetime(2026, 9, 21, 15, 13, 20),
+        },
+        {"start": datetime(2026, 9, 22, 18, 0), "end": None},
+    ]
+    assert df["informed_entities"].to_list()[0] == [
+        {"trip_id": "OCESN862402F", "route_id": None, "stop_id": None},
+        {"trip_id": None, "route_id": None, "stop_id": "StopArea:OCE87391003"},
+    ]
+    assert df["fetched_at"][0] == datetime(2026, 9, 21, 14, 13, 20)

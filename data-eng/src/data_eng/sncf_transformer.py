@@ -1,7 +1,10 @@
 """Transformation functions for SNCF data."""
 
+import html
 import io
+import re
 import zipfile
+from datetime import UTC, datetime
 
 import polars as pl
 from google.transit import gtfs_realtime_pb2
@@ -52,6 +55,11 @@ TRIP_SCHEDULE_RELATIONSHIP = gtfs_realtime_pb2.TripDescriptor.ScheduleRelationsh
 STOP_SCHEDULE_RELATIONSHIP = (
     gtfs_realtime_pb2.TripUpdate.StopTimeUpdate.ScheduleRelationship
 )
+
+# Unlike the statuses above, an absent alert cause or effect is kept as null:
+# its default (UNKNOWN_CAUSE) would hide that the SNCF did not set it.
+ALERT_CAUSE = gtfs_realtime_pb2.Alert.Cause
+ALERT_EFFECT = gtfs_realtime_pb2.Alert.Effect
 
 
 def extract_gtfs_files(zip_bytes: bytes) -> dict[str, bytes]:
@@ -174,5 +182,105 @@ def sncf_trip_updates_protobuf_to_sheets(protobuf_sncf_data):
         pl.from_epoch("start_date", time_unit="d"),
         pl.from_epoch("departure_time", time_unit="s"),
         pl.from_epoch("arrival_time", time_unit="s"),
+        pl.from_epoch("fetched_at", time_unit="s"),
+    )
+
+
+def _french_text(translated_string) -> str | None:
+    """Return the French translation of a GTFS-RT text, cleaned of its HTML.
+
+    Alerts come in up to 6 languages; the classification rules are written
+    for French. Falls back to the first translation when there is no French.
+    Descriptions hold HTML (<p>, &nbsp;...): tags are removed, entities
+    decoded and whitespace collapsed.
+    """
+    translations = translated_string.translation
+    if not translations:
+        return None
+    text = next((t.text for t in translations if t.language == "fr"), None)
+    if text is None:
+        text = translations[0].text
+    text = html.unescape(re.sub(r"<[^>]+>", " ", text))
+    return re.sub(r"\s+", " ", text).strip() or None
+
+
+def _utc_datetime(timestamp: int) -> datetime | None:
+    """Convert a POSIX timestamp to a naive UTC datetime, 0 (unset) to None."""
+    if not timestamp:
+        return None
+    return datetime.fromtimestamp(timestamp, UTC).replace(tzinfo=None)
+
+
+def sncf_service_alerts_protobuf_to_sheets(protobuf_sncf_data: bytes) -> pl.DataFrame:
+    """Transform a GTFS-RT service alerts snapshot into a dataframe.
+
+    One row per alert. An alert can target several trains and have several
+    active periods: both are kept as list columns.
+
+    Args:
+        protobuf_sncf_data (bytes): service alerts snapshot in GTFS-RT format.
+
+    Returns:
+        pl.DataFrame: dataframe containing one row per alert
+
+    """
+    feed = gtfs_realtime_pb2.FeedMessage()
+    feed.ParseFromString(protobuf_sncf_data)
+
+    fetched_at = feed.header.timestamp
+    rows = []
+
+    for entity in feed.entity:
+        if not entity.HasField("alert"):
+            continue
+
+        alert = entity.alert
+        rows.append(
+            {
+                "alert_id": entity.id,
+                "cause": ALERT_CAUSE.Name(alert.cause)
+                if alert.HasField("cause")
+                else None,
+                "effect": ALERT_EFFECT.Name(alert.effect)
+                if alert.HasField("effect")
+                else None,
+                "header_text": _french_text(alert.header_text),
+                "description_text": _french_text(alert.description_text),
+                # An unset start or end means the period is open on that side
+                "active_periods": [
+                    {"start": _utc_datetime(p.start), "end": _utc_datetime(p.end)}
+                    for p in alert.active_period
+                ],
+                # trip_id is a train number (e.g. OCESN862402F), not a GTFS trip_id
+                "informed_entities": [
+                    {
+                        "trip_id": e.trip.trip_id or None,
+                        "route_id": e.route_id or None,
+                        "stop_id": e.stop_id or None,
+                    }
+                    for e in alert.informed_entity
+                ],
+                "fetched_at": fetched_at,
+            }
+        )
+
+    schema = {
+        "alert_id": pl.String,
+        "cause": pl.String,
+        "effect": pl.String,
+        "header_text": pl.String,
+        "description_text": pl.String,
+        "active_periods": pl.List(
+            pl.Struct({"start": pl.Datetime("us"), "end": pl.Datetime("us")})
+        ),
+        "informed_entities": pl.List(
+            pl.Struct(
+                {"trip_id": pl.String, "route_id": pl.String, "stop_id": pl.String}
+            )
+        ),
+        "fetched_at": pl.Int64,
+    }
+
+    return pl.DataFrame(rows, schema=schema).with_columns(
         pl.from_epoch("fetched_at", time_unit="s"),
     )
