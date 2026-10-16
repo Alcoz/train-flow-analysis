@@ -55,6 +55,13 @@ trains AS (
         -- Trains removed from the GTFS are sent with their short id
         -- (e.g. "OCESN19812F" and CANCELED): match them by train number
         OR (r.trip_id = r.train_number AND p.train_number = r.train_number)
+    -- A train can be sent under both ids on the same day (e.g. OCESN9531F on
+    -- 2026-10-06: full id until 18:08, then short id as ADDED): keep its
+    -- latest real-time state, as last_snapshot does
+    QUALIFY row_number() OVER (
+        PARTITION BY coalesce(p.trip_id, r.trip_id)
+        ORDER BY r.last_fetched_at DESC NULLS LAST
+    ) = 1
 )
 
 SELECT
