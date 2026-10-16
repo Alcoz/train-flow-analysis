@@ -445,22 +445,30 @@ models:
           - accepted_values:
               arguments:
                 values: ['planned', 'late_cancelled', 'deprogrammed']
+
   - name: fact_alerts
     description: "Service alerts present in the feed on the run date, in their last version of the day, with the category and reason given by alert_classification_rules. Written to Gold so that fact_trip_disruptions, built by another job, can read it."
     config:
       contract: {enforced: true}
     constraints:
       - type: primary_key
-        columns: [alert_id]
+        columns: [alert_id, date]
         warn_unsupported: false
+    # An alert can stay in the feed for several days, so alert_id alone
+    # repeats across the date partitions read by the test.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [alert_id, date]
     columns:
       - name: date
         description: "Fetch day of the snapshots (Europe/Paris)."
         data_type: date
         data_tests: [not_null]
       - name: alert_id
+        description: "Not unique across days: an alert can stay in the feed for several days."
         data_type: varchar
-        data_tests: [unique, not_null]
+        data_tests: [not_null]
       - name: cause
         description: "GTFS-RT cause, null when the SNCF did not set it."
         data_type: varchar
