@@ -54,6 +54,8 @@ Silver assets are **partitioned by day** (`Europe/Paris`) and idempotent: rebuil
 - `sncf_silver_alerts_data` converts each service alerts snapshot of the day into one Parquet file under `data/silver/alerts/date=YYYY-MM-DD/`, with one row per alert: cause and effect (null when the SNCF did not set them), French header and description cleaned of their HTML, and the active periods and targeted train numbers as lists. Alerts have no service date, so they are stored by **fetch date**.
 - `sncf_silver_continue_data` flattens the trip updates (one row per trip and stop, with departure/arrival times and delays). Data is stored by **service date** rather than fetch date: overnight trains keep sending updates after midnight, so the next day's snapshots are read too. This is why the daily job runs at 03:00 for the previous day.
 
+Columns, grain and partitioning of every Silver table: [`data-eng/docs/silver_tables.md`](data-eng/docs/silver_tables.md).
+
 ### Warehouse (Gold)
 
 The dbt project in [`data-eng/dbt_data_pipeline`](data-eng/dbt_data_pipeline) runs on DuckDB and writes external Parquet tables back to S3, partitioned by date:

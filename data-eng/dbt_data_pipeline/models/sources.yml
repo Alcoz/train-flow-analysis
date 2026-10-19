@@ -2,6 +2,7 @@ version: 1
 
 # Silver data of a run is read for one date, the `today` var set by Dagster
 # from the partition key, except the GTFS tables read over several versions.
+# Columns of every Silver table: data-eng/docs/silver_tables.md
 sources:
   - name: silver
     tables:
