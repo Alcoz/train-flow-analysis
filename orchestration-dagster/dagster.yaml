@@ -49,4 +49,4 @@ concurrency:
   runs:
     tag_concurrency_limits:
       - key: "dagster/backfill"
-        limit: 1
+        limit: 4

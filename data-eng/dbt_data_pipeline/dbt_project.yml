@@ -29,3 +29,7 @@ models:
 
 vars:
   "dbt_date:time_zone": "Europe/Paris"
+
+# No usage tracking sent by dbt at the end of each command
+flags:
+  send_anonymous_usage_stats: false
