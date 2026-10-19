@@ -1,5 +1,5 @@
 {#-
-    Daily counts per line, from fact_trip_runs. Only counts and sums are
+    Daily counts per line, from fact_train_trips. Only counts and sums are
     stored: weeks are sums of days, and rates are computed when reading
     (ratio of sums), so that days with few trains do not weigh as much as busy
     ones. Trains added in real time have no line: they are grouped under a
@@ -37,6 +37,6 @@ SELECT
     coalesce(
         sum(greatest(terminus_arrival_delay, 0)) FILTER (WHERE NOT is_cancelled), 0
     )::BIGINT AS terminus_delay_seconds
-FROM {{ ref("fact_trip_runs") }}
+FROM {{ ref("fact_train_trips") }}
 WHERE date = {{ run_date() }}
 GROUP BY date, route_id

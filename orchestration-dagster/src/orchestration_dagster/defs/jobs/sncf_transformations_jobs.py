@@ -13,7 +13,7 @@ sncf_delay_preparation_job = dg.define_asset_job(
         | dg.AssetSelection.assets("dim_dates")
         | dg.AssetSelection.assets("dim_routes")
         | dg.AssetSelection.assets("int_planned_trains")
-        | dg.AssetSelection.assets("fact_trip_runs")
+        | dg.AssetSelection.assets("fact_train_trips")
         | dg.AssetSelection.assets("agg_daily_route")
     ),
     partitions_def=daily_partitions,

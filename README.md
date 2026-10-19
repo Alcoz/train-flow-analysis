@@ -32,7 +32,7 @@ The pipeline follows a **Bronze / Silver / Gold** (medallion) architecture, orch
           │ dbt build (DuckDB, reads/writes S3 through httpfs)
           ▼
  ┌─────────────────────────────────────────────────────────┐
- │ Gold     data/gold/{dim_routes, fact_trip_runs,         │
+ │ Gold     data/gold/{dim_routes, fact_train_trips,       │
  │            agg_daily_route, dim_alerts,                 │
  │            fact_train_alerts}/date=…, dim_dates         │
  └─────────────────────────────────────────────────────────┘
@@ -62,7 +62,7 @@ The dbt project in [`data-eng/dbt_data_pipeline`](data-eng/dbt_data_pipeline) ru
 
 - `dim_dates` — calendar dimension (via `dbt_date`)
 - `dim_routes` — daily snapshot of routes, with terminal stations parsed from the route name
-- `fact_trip_runs` — one row per train of the service date (announced or added in real time), with its status and delay at the effective terminus
+- `fact_train_trips` — one row per train of the service date (announced or added in real time), with its status and delay at the effective terminus
 - `agg_daily_route` — daily counts per line, behind the weekly delay and cancellation views
 - `dim_alerts` — service alerts of the day, classified by category and reason
 - `fact_train_alerts` — one row per alert and affected train, behind the weekly alert views

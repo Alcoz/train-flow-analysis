@@ -13,7 +13,7 @@ Column types below come from that code.
 | [`routes`](#routes) | `theory/date=D/routes.parquet` | line | GTFS publication day | `dim_routes` |
 | [`stops`](#stops) | `theory/date=D/stops.parquet` | stop area or stop point | GTFS publication day | — |
 | [`stop_times`](#other-gtfs-tables), `transfers`, `feed_info`, `agency` | `theory/date=D/<table>.parquet` | see the GTFS reference | GTFS publication day | — |
-| [`trip_updates`](#trip_updates) | `continue/date=D/<fetch day>_<HH-MM-SS>.parquet` | snapshot × trip × stop | **service date** | `fact_trip_runs` |
+| [`trip_updates`](#trip_updates) | `continue/date=D/<fetch day>_<HH-MM-SS>.parquet` | snapshot × trip × stop | **service date** | `fact_train_trips` |
 | [`alerts`](#alerts) | `alerts/date=D/<HH-MM-SS>.parquet` | snapshot × alert | **fetch day** | `dim_alerts` |
 
 Rules shared by every table:
@@ -84,11 +84,11 @@ typed `stop_sequence`, `pickup_type`, `drop_off_type`, `shape_dist_traveled`, `t
 Flattened GTFS-RT trip updates, fetched every 2 minutes. The partition is the
 **service date** (`start_date`), not the fetch day: the partition D reads the
 snapshots of D and D+1, so overnight trains are complete. A trip appears once per
-snapshot it is in: picking its last state is left to `fact_trip_runs`.
+snapshot it is in: picking its last state is left to `fact_train_trips`.
 
 | Column | Type | Description |
 | --- | --- | --- |
-| `trip_id` | string | Usually the GTFS trip_id. Can also be a short train number (`OCESN19812F`), and trains added in real time have one that is not in the GTFS: `fact_trip_runs` matches them by train number. |
+| `trip_id` | string | Usually the GTFS trip_id. Can also be a short train number (`OCESN19812F`), and trains added in real time have one that is not in the GTFS: `fact_train_trips` matches them by train number. |
 | `start_date` | date | Service date of the train. |
 | `trip_schedule_relationship` | string | `SCHEDULED`, `ADDED` or `CANCELED`. |
 | `stop_id` | string | Stop point. |

@@ -2,7 +2,7 @@
     One row per train of the service date: every announced train
     (int_planned_trains) plus the trains added in real time. Holds what the
     delay and cancellation indicators need (see business_rules.md).
-    Written to {external_root}/fact_trip_runs/date=YYYY-MM-DD/data_0.parquet;
+    Written to {external_root}/fact_train_trips/date=YYYY-MM-DD/data_0.parquet;
     overwrite_or_ignore only replaces the partition of this run, so the run must
     only emit rows for its own date.
 -#}

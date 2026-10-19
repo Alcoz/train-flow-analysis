@@ -58,7 +58,7 @@ The GTFS removes trains before their service day: a train announced in one versi
 | **Late-cancelled** | Removed from the GTFS less than 3 days before D (missing from the D-2, D-1 or D version while an older one had it), **or** last real-time status = `CANCELED`. |
 | **Deprogrammed** | Removed from the GTFS 3 days or more before D. |
 
-The real-time feed wins over the GTFS: a train removed from the GTFS but seen running in the real-time feed is **planned** (it ran). Trains are stored in [`fact_trip_runs`](../dbt_data_pipeline/models/warehouse/fact_trip_runs.sql), one row per announced or added train, with `train_status`, `is_observed`, `is_cancelled`, `is_limited` and the raw delay at the effective terminus. ✅
+The real-time feed wins over the GTFS: a train removed from the GTFS but seen running in the real-time feed is **planned** (it ran). Trains are stored in [`fact_train_trips`](../dbt_data_pipeline/models/warehouse/fact_train_trips.sql), one row per announced or added train, with `train_status`, `is_observed`, `is_cancelled`, `is_limited` and the raw delay at the effective terminus. ✅
 
 Trains are looked up in the **30 GTFS versions** before D. **Announced trains** = every train of day D found in at least one of these versions (planned + late-cancelled + deprogrammed): the denominator of indicators 2a, 2b and 2c.
 

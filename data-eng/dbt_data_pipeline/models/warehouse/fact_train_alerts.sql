@@ -3,7 +3,7 @@
     D is affected by an alert when, in the last snapshot of day D, the alert
     lists its train number and D falls within an active period of the alert
     (see business_rules.md). Alerts only give train numbers, with no date:
-    fact_trip_runs turns them into trains.
+    fact_train_trips turns them into trains.
     Alert attributes (category, reason, texts) stay in dim_alerts, joined on
     alert_id and date.
     Built by its own job, after the alerts and delay jobs: both inputs are read
@@ -24,7 +24,7 @@
 }}
 
 -- depends_on: {{ ref("dim_alerts") }}
--- depends_on: {{ ref("fact_trip_runs") }}
+-- depends_on: {{ ref("fact_train_trips") }}
 
 WITH alert_trains AS (
     SELECT DISTINCT
@@ -61,5 +61,5 @@ SELECT
     r.route_id,
     r.train_status
 FROM alert_trains AS a
-INNER JOIN {{ gold_partition("fact_trip_runs") }} AS r
+INNER JOIN {{ gold_partition("fact_train_trips") }} AS r
     ON a.train_number = r.train_number

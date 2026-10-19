@@ -20,12 +20,12 @@ OPTIONS (location = 'EU');
 -- DuckDB drops the partition column from the files, so `date` only comes
 -- from the folder name through hive partitioning.
 
-CREATE OR REPLACE EXTERNAL TABLE gold.fact_trip_runs
+CREATE OR REPLACE EXTERNAL TABLE gold.fact_train_trips
 WITH PARTITION COLUMNS (date DATE)
 OPTIONS (
   format = 'PARQUET',
-  uris = ['gs://sncf-bucket/data/gold/fact_trip_runs/*'],
-  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_trip_runs'
+  uris = ['gs://sncf-bucket/data/gold/fact_train_trips/*'],
+  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_train_trips'
 );
 
 CREATE OR REPLACE EXTERNAL TABLE gold.agg_daily_route

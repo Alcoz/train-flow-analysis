@@ -45,7 +45,7 @@ models:
     description: "Calendar dimension, one row per day."
     config:
       meta:
-        purpose: "Calendar checked by the relationships tests of fact_trip_runs."
+        purpose: "Calendar checked by the relationships tests of fact_train_trips."
         status: active
       contract: {enforced: true}
     columns:
@@ -78,7 +78,7 @@ models:
       - name: year_number
         data_type: integer
 
-  - name: fact_trip_runs
+  - name: fact_train_trips
     description: "One row per train of the service date: announced trains (int_planned_trains) and trains added in real time, with their status, observation and delay at the effective terminus."
     config:
       meta:
@@ -150,7 +150,7 @@ models:
         data_type: timestamp
 
   - name: agg_daily_route
-    description: "Daily counts per line from fact_trip_runs. Only counts and sums: weeks are sums of days and rates are computed when reading. Trains added in real time are under a null route_id."
+    description: "Daily counts per line from fact_train_trips. Only counts and sums: weeks are sums of days and rates are computed when reading. Trains added in real time are under a null route_id."
     config:
       meta:
         purpose: "Daily counts behind the weekly views of indicators 1 to 4."
@@ -230,7 +230,7 @@ models:
         data_type: varchar
         data_tests: [not_null]
       - name: trip_id
-        description: "trip_id of the train in fact_trip_runs."
+        description: "trip_id of the train in fact_train_trips."
         data_type: varchar
         data_tests: [not_null]
       - name: train_number
@@ -241,7 +241,7 @@ models:
         description: "Line of the train; null for trains added in real time."
         data_type: varchar
       - name: train_status
-        description: "Status of the train in fact_trip_runs (planned, late_cancelled, deprogrammed, added)."
+        description: "Status of the train in fact_train_trips (planned, late_cancelled, deprogrammed, added)."
         data_type: varchar
         data_tests: [not_null]
 
