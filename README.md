@@ -42,7 +42,7 @@ The pipeline follows a **Bronze / Silver / Gold** (medallion) architecture, orch
 
 - `sncf_bronze_theoretical_data` downloads the [SNCF GTFS archive](https://ressources.data.sncf.com/explore/dataset/horaires-sncf/information/) once a day and stores it unchanged. An asset check warns (without blocking) when `trips.txt`, `routes.txt` or `stops.txt` is missing or empty.
 - `sncf_bronze_continue_data` fetches the [GTFS-RT trip updates feed](https://transport.data.gouv.fr/) every 2 minutes and stores each protobuf snapshot.
-- `sncf_bronze_service_alerts_data` fetches the GTFS-RT service alerts feed (messages with their cause, effect and affected routes, trips and stops) every 2 minutes and stores each snapshot under `data/bronze/alerts/year=/month=/day=/HH-MM-SS.pb`.
+- `sncf_bronze_service_alerts_data` fetches the GTFS-RT service alerts feed (messages with their cause, effect and affected routes, trips and stops) every 5 minutes and stores each snapshot under `data/bronze/alerts/year=/month=/day=/HH-MM-SS.pb`.
 
 Raw data is kept as-is, so any later layer can be rebuilt from Bronze.
 
@@ -75,7 +75,7 @@ Models enforce contracts and are covered by dbt tests (uniqueness, not-null, acc
 |------------------------------|------------------------------|------------------------------------|
 | `theoretical_getter_job`     | Bronze GTFS                  | Every day at 10:30                 |
 | `trip_update_getter_job`     | Bronze GTFS-RT               | Every 2 minutes                    |
-| `service_alerts_getter_job`  | Bronze GTFS-RT alerts        | Every 2 minutes                    |
+| `service_alerts_getter_job`  | Bronze GTFS-RT alerts        | Every 5 minutes                    |
 | `sncf_delay_preparation_job` | Silver GTFS and GTFS-RT, Gold delay and cancellation models (partitions since 2026-09-14) | Every day at 03:00, previous day's partition |
 | `sncf_alerts_preparation_job` | Silver alerts, `dim_alerts` (partitions since 2026-10-07, start of the alerts collection) | Every day at 03:00, previous day's partition |
 | `sncf_train_alerts_preparation_job` | `fact_train_alerts`, from the Gold files of the two jobs above | Every day at 03:30, previous day's partition |
@@ -165,7 +165,7 @@ make dagster-postgres   # start the Postgres backend for Dagster
 make dagster-run        # start Dagster in development mode
 ```
 
-Then open [http://localhost:3000](http://localhost:3000) to materialize assets, launch backfills or enable the schedules.
+Then open [http://localhost:3000](http://localhost:3000) to materialize assets, launch backfills or enable the schedules. The processing steps and their order, from Python to BigQuery, are described in [`data-eng/README.md`](data-eng/README.md).
 
 dbt can also be run on its own:
 
