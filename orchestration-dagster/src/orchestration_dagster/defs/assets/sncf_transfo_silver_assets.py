@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from io import BytesIO
 
@@ -115,7 +116,9 @@ def sncf_silver_continue_data(
     converted twice, once for each service date it holds.
 
     Files are written under deterministic names, so processing a partition
-    again only overwrites them.
+    again only overwrites them. The files are independent and the work is
+    mostly S3 I/O, so they are converted in parallel threads (the boto3
+    client is thread-safe).
 
     Args:
     context: Dagster execution context, provides the partition key
@@ -125,6 +128,8 @@ def sncf_silver_continue_data(
 
     """
     CONTINUE_DATA_FOLDER = "data/{layer}/continue/"
+    # Below the default connection pool of a boto3 client (10)
+    MAX_WORKERS = 8
 
     service_date = datetime.strptime(context.partition_key, "%Y-%m-%d").date()
     silver_folder = CONTINUE_DATA_FOLDER.format(layer="silver") + (
@@ -134,42 +139,57 @@ def sncf_silver_continue_data(
     s3_client = s3_resource.get_client()
     s3_bucket_name = s3_resource.bucket_name
 
-    rows = 0
-    for fetch_day in (service_date, service_date + timedelta(days=1)):
-        bronze_folder = CONTINUE_DATA_FOLDER.format(
-            layer="bronze"
-        ) + fetch_day.strftime("year=%Y/month=%m/day=%d/")
-        context.log.info(f"Processing fetch day {fetch_day}")
-
-        for filename in get_folder_content_from_s3(
+    def convert_file(fetch_day, bronze_folder: str, filename: str) -> int:
+        """Convert one bronze file to silver and return its number of rows."""
+        protobuf_sncf_data = get_object_from_s3(
             s3_client=s3_client,
-            bucket_name=s3_bucket_name,
-            folder=bronze_folder,
-        ):
-            protobuf_sncf_data = get_object_from_s3(
+            bucket=s3_bucket_name,
+            filepath=bronze_folder + filename,
+        )
+
+        trips_updates_df = sncf_trip_updates_protobuf_to_sheets(
+            protobuf_sncf_data=protobuf_sncf_data
+        ).filter(pl.col("start_date") == service_date)
+
+        if trips_updates_df.is_empty():
+            return 0
+
+        parquet_buffer = BytesIO()
+        trips_updates_df.write_parquet(parquet_buffer)
+        parquet_buffer.seek(0)
+
+        # Bronze file names are only unique within a fetch day
+        s3_client.upload_fileobj(
+            parquet_buffer,
+            s3_bucket_name,
+            silver_folder + f"{fetch_day}_{filename.split('.')[0]}.parquet",
+        )
+        return trips_updates_df.height
+
+    rows = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        for fetch_day in (service_date, service_date + timedelta(days=1)):
+            bronze_folder = CONTINUE_DATA_FOLDER.format(
+                layer="bronze"
+            ) + fetch_day.strftime("year=%Y/month=%m/day=%d/")
+            filenames = get_folder_content_from_s3(
                 s3_client=s3_client,
-                bucket=s3_bucket_name,
-                filepath=bronze_folder + filename,
+                bucket_name=s3_bucket_name,
+                folder=bronze_folder,
+            )
+            context.log.info(
+                f"Processing fetch day {fetch_day}: {len(filenames)} files"
             )
 
-            trips_updates_df = sncf_trip_updates_protobuf_to_sheets(
-                protobuf_sncf_data=protobuf_sncf_data
-            ).filter(pl.col("start_date") == service_date)
-
-            if trips_updates_df.is_empty():
-                continue
-
-            parquet_buffer = BytesIO()
-            trips_updates_df.write_parquet(parquet_buffer)
-            parquet_buffer.seek(0)
-
-            # Bronze file names are only unique within a fetch day
-            s3_client.upload_fileobj(
-                parquet_buffer,
-                s3_bucket_name,
-                silver_folder + f"{fetch_day}_{filename.split('.')[0]}.parquet",
+            # map re-raises the first error of a file, failing the asset
+            rows += sum(
+                executor.map(
+                    convert_file,
+                    [fetch_day] * len(filenames),
+                    [bronze_folder] * len(filenames),
+                    filenames,
+                )
             )
-            rows += trips_updates_df.height
 
     return dg.MaterializeResult(metadata={"rows": rows, "s3_path": silver_folder})
 

@@ -17,6 +17,9 @@ sncf_delay_preparation_job = dg.define_asset_job(
         | dg.AssetSelection.assets("agg_daily_route")
     ),
     partitions_def=daily_partitions,
+    # The steps depend on each other: one process for the whole run avoids
+    # reloading the code location before each step.
+    executor_def=dg.in_process_executor,
 )
 
 # Classified service alerts, since 2026-10-07 (start of their collection).

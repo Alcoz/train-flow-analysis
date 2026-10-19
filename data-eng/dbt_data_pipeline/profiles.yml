@@ -4,6 +4,8 @@ sncf_data_analysis:
     dev:
       type: duckdb
       path: ":memory:"
+      # Independent models (dim_dates, dim_routes...) are built in parallel
+      threads: 4
 
       extensions:
         - httpfs
