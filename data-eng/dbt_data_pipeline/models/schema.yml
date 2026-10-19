@@ -2,6 +2,9 @@ models:
   - name: dim_routes
     description: "Daily snapshots of the train routes from the theoretical GTFS feed."
     config:
+      meta:
+        purpose: "Line names of the weekly views and line of each train."
+        status: active
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -41,6 +44,9 @@ models:
   - name: dim_trips
     description: "Daily snapshots of the scheduled trips from the theoretical GTFS feed."
     config:
+      meta:
+        purpose: "Trip attributes of fact_train_trips."
+        status: to_review
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -77,6 +83,9 @@ models:
   - name: dim_stops
     description: "Daily snapshots of the stops (stop areas and stop points) from the theoretical GTFS feed."
     config:
+      meta:
+        purpose: "Stop attributes of fact_train_trips."
+        status: to_review
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -121,6 +130,9 @@ models:
   - name: dim_dates
     description: "Calendar dimension, one row per day."
     config:
+      meta:
+        purpose: "Calendar checked by the relationships tests of fact_train_trips and fact_trip_runs."
+        status: active
       contract: {enforced: true}
     columns:
       - name: date_day
@@ -155,6 +167,9 @@ models:
   - name: fact_train_trips
     description: "Real-time delays aggregated per trip, stop and service date."
     config:
+      meta:
+        purpose: "Per-stop delays, read only by the ad hoc delay_analysis query."
+        status: to_review
       contract: {enforced: true}
     # Foreign keys are checked by relationships tests: DuckDB rejects FK
     # constraints that reference the views created by external models.
@@ -231,6 +246,9 @@ models:
   - name: fact_trip_runs
     description: "One row per train of the service date: announced trains (int_planned_trains) and trains added in real time, with their status, observation and delay at the effective terminus."
     config:
+      meta:
+        purpose: "Train-level grain of indicators 1 to 4, source of agg_daily_route and fact_trip_disruptions."
+        status: active
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -299,6 +317,9 @@ models:
   - name: agg_daily_route
     description: "Daily counts per line from fact_trip_runs. Only counts and sums: weeks are sums of days and rates are computed when reading. Trains added in real time are under a null route_id."
     config:
+      meta:
+        purpose: "Daily counts behind the weekly views of indicators 1 to 4."
+        status: active
       contract: {enforced: true}
     data_tests:
       - dbt_utils.unique_combination_of_columns:
@@ -352,6 +373,9 @@ models:
   - name: fact_trip_disruptions
     description: "One row per alert and affected train of the service date: the alert lists the train number in its last version of the day, and the day falls within one of its active periods."
     config:
+      meta:
+        purpose: "Trains affected by alerts, behind the weekly views of indicators 5 to 7."
+        status: active
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -398,6 +422,9 @@ models:
   - name: int_planned_trains
     description: "Trains announced for the run date (in at least one of the last 30 GTFS versions), with their GTFS status. Denominator of the cancellation indicators and join target of the alerts."
     config:
+      meta:
+        purpose: "Announced trains: denominator of indicators 2a to 2c and join target of the alerts."
+        status: active
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -449,6 +476,9 @@ models:
   - name: fact_alerts
     description: "Service alerts present in the feed on the run date, in their last version of the day, with the category and reason given by alert_classification_rules. Written to Gold so that fact_trip_disruptions, built by another job, can read it."
     config:
+      meta:
+        purpose: "Classified alerts, handed over to fact_trip_disruptions through Gold."
+        status: active
       contract: {enforced: true}
     constraints:
       - type: primary_key

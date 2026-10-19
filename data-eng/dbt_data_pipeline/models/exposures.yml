@@ -1,0 +1,43 @@
+exposures:
+  - name: weekly_delay_views
+    label: Weekly delay and cancellation views
+    type: dashboard
+    maturity: medium
+    description: >
+      Indicators 1 to 4 (see data-eng/docs/business_rules.md). BigQuery views
+      gold.weekly_network and gold.weekly_route, created by
+      data-eng/bigquery/create_weekly_views.sql.
+    depends_on:
+      - ref('agg_daily_route')
+      - ref('dim_routes')
+    owner:
+      name: Baptiste Darnala
+
+  - name: weekly_disruption_views
+    label: Weekly disruption views
+    type: dashboard
+    maturity: high
+    description: >
+      Indicators 5 to 7 (see data-eng/docs/business_rules.md). BigQuery views
+      gold.weekly_disruption_categories, gold.weekly_incident_reasons and
+      gold.weekly_works_routes, created by data-eng/bigquery/create_weekly_views.sql.
+      They also read gold.weekly_network, so they depend on agg_daily_route.
+    depends_on:
+      - ref('fact_trip_disruptions')
+      - ref('agg_daily_route')
+      - ref('dim_routes')
+    owner:
+      name: Baptiste Darnala
+
+  - name: delay_analysis
+    label: Delay distribution per line (ad hoc)
+    type: analysis
+    maturity: low
+    description: >
+      Ad hoc query data-eng/bigquery/delay_analysis.sql: delay mean, spread and
+      percentiles per line over the last 30 days.
+    depends_on:
+      - ref('fact_train_trips')
+      - ref('dim_routes')
+    owner:
+      name: Baptiste Darnala
