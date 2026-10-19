@@ -42,7 +42,7 @@ Steps 3 and 4 are independent: they can run at the same time. Step 5 needs both.
 from data_eng.sncf_getter import get_sncf_trip_update_train_data
 from data_eng.sncf_transformer import sncf_trip_updates_protobuf_to_sheets
 
-snapshot = get_sncf_trip_update_train_data()                 # bytes (Bronze)
+snapshot = get_sncf_trip_update_train_data()  # bytes (Bronze)
 trip_updates = sncf_trip_updates_protobuf_to_sheets(snapshot)  # dataframe (Silver)
 ```
 
