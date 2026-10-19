@@ -49,6 +49,22 @@ dbt project is loaded twice: `dbt_ingest` builds `tag:daily`, `dbt_alerts` build
 
 ## Jobs and schedules (Europe/Paris)
 
+Order of the jobs, from their dependencies:
+
+```
+1. Getters (continuous)          theoretical / trip_update / service_alerts → Bronze
+        │
+        ▼  day D+1
+2. sncf_delay_preparation_job  ┐  in parallel, 03:00
+   sncf_alerts_preparation_job ┘
+        │  (both finished)
+        ▼
+3. sncf_train_alerts_preparation_job   03:30
+        │
+        ▼  once, after the first Gold days
+4. BigQuery: create_gold_external_tables.sql, then create_weekly_views.sql
+```
+
 | Job | Builds | Schedule |
 | --- | --- | --- |
 | `theoretical_getter_job` | Bronze GTFS | every day at 10:30 |
