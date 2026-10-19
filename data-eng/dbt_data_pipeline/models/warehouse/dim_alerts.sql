@@ -45,9 +45,9 @@ classified AS (
             r.pattern
         )
         AND (r.cause_filter IS NULL OR r.cause_filter = coalesce(a.cause, 'absent'))
-    -- Lowest priority wins
+    -- Lowest priority wins; priorities are unique (seed test)
     QUALIFY row_number() OVER (
-        PARTITION BY a.alert_id ORDER BY r.priority NULLS LAST, r.rule_id
+        PARTITION BY a.alert_id ORDER BY r.priority
     ) = 1
 )
 

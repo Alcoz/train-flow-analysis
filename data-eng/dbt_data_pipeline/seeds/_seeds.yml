@@ -4,9 +4,10 @@ seeds:
       Rules that label GTFS-RT service alerts, whose cause and effect fields
       carry almost no information. Each rule is a regex matched against
       lower(strip_accents(header || ' | ' || description)) of the French
-      translation; an alert takes the matching rule with the lowest priority
-      (ties broken by rule_id). Root causes (people on tracks, animals, weather)
-      have a lower priority than their consequences (signalling, power supply).
+      translation; an alert takes the matching rule with the lowest priority.
+      The hundreds digit of the priority is the level of the rule, the units
+      its order within the level (see data-eng/docs/business_rules.md).
+      Rows are sorted by priority, the order in which rules apply.
     config:
       # Loaded in every alerts run: the DuckDB of a run is in memory
       tags: ["alerts"]
@@ -21,8 +22,8 @@ seeds:
       - name: rule_id
         data_tests: [unique, not_null]
       - name: priority
-        description: "Lowest priority wins when several rules match an alert."
-        data_tests: [not_null]
+        description: "Lowest priority wins when several rules match an alert. Hundreds = level (1 cause field, 2 alert cancellation, 3 root cause, 4 technical failure, 5 generic operations, 6 works in the text, 7 passenger information, 8 fallback), units = order within the level."
+        data_tests: [unique, not_null]
       - name: cause_filter
         description: "Rule only applies to alerts with this cause; 'absent' means the cause field is not set. Null applies to every alert."
         data_tests:

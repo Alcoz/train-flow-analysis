@@ -89,22 +89,27 @@ The rules are applied by [`dim_alerts`](../dbt_data_pipeline/models/warehouse/di
 1. Take the French header and description: `header || ' | ' || description`.
 2. Lowercase the text and strip accents (`lower(strip_accents(...))`).
 3. Each rule is a regex. A rule can also require a given `cause` value.
-4. When several rules match, the alert takes the one with the **lowest priority**.
+4. The rules whose regex matches the text are the **candidate rules**. The alert takes the candidate with the **lowest priority**.
 5. When no rule matches, the alert gets the `autre` category.
 
 ### Priority order
 
-| Priority | Rules | Why |
-| --- | --- | --- |
-| 10 | `cause = MAINTENANCE` → works | Only reliable signal in the feed |
-| 50 | Alert cancellation ("contrairement à ce qui a été annoncé") | Must not count as an incident |
-| 80–90 | Root causes: person struck, people on tracks, security, animal, weather, sick passenger, obstacle, strike | A cause wins over its consequence |
-| 100–140 | Consequences: infrastructure, rolling stock, staff, traffic regulation… | |
-| 150 | Works detected in the text | |
-| 300–320 | Passenger information | |
-| 800 | Incident with no reason → "Non précisée" | Safety net |
+Priorities are set in the seed, they come from no SNCF or GTFS reference. Only their order matters, and it is written in the number: the **hundreds digit is the level** of the rule, the **units its order within the level** (`303` = 3rd rule of level 3). Every priority is unique (dbt test), so no hidden tie-break decides. A new level is inserted by renumbering, never in a gap.
 
-Example: for "Un vol de câbles génère des anomalies de signalisation", both `surete` (90) and `infra_signalisation` (100) match. The reason kept is **Sûreté / malveillance**.
+| Level | Content | Why at this place |
+| --- | --- | --- |
+| 1xx | `cause = MAINTENANCE` | Only structured signal of the feed |
+| 2xx | Alert cancellation | A train that runs must not count as an incident |
+| 3xx | Root causes: person struck, animal, strike, sick passenger, weather, obstacle, people on tracks, security | A cause wins over its consequence |
+| 4xx | Technical failures: switch, power supply, level crossing, signalling, rolling stock, staff, train preparation | Precise consequence |
+| 5xx | Generic operations: crowds, late connecting train, other infrastructure, production, traffic regulation | Vague, but better than no reason |
+| 6xx | Works detected in the text | Less reliable than the `cause` field |
+| 7xx | Passenger information | No impact on traffic |
+| 8xx | Incident with no reason → "Non précisée" | Safety net |
+
+Example: for "Un vol de câbles génère des anomalies de signalisation", both `surete` (3xx) and `infra_signalisation` (4xx) match. The reason kept is **Sûreté / malveillance**.
+
+Within a level, the order of the rules was set by their `rule_id` and has not been reviewed.
 
 ### Categories
 
