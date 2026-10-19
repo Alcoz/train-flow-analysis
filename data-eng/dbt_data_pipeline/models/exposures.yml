@@ -13,17 +13,17 @@ exposures:
     owner:
       name: Baptiste Darnala
 
-  - name: weekly_disruption_views
-    label: Weekly disruption views
+  - name: weekly_alert_views
+    label: Weekly alert views
     type: dashboard
     maturity: high
     description: >
       Indicators 5 to 7 (see data-eng/docs/business_rules.md). BigQuery views
-      gold.weekly_disruption_categories, gold.weekly_incident_reasons and
+      gold.weekly_alert_categories, gold.weekly_incident_reasons and
       gold.weekly_works_routes, created by data-eng/bigquery/create_weekly_views.sql.
       They also read gold.weekly_network, so they depend on agg_daily_route.
     depends_on:
-      - ref('fact_trip_disruptions')
+      - ref('fact_train_alerts')
       - ref('agg_daily_route')
       - ref('dim_routes')
     owner:

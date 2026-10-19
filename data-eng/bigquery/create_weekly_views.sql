@@ -171,33 +171,33 @@ LEFT JOIN late_cancelled_leaders AS c
   ON r.week_start = c.week_start AND r.route_id = c.route_id;
 
 
--- Disruption views (indicators 5 to 7), on top of gold.fact_trip_disruptions.
+-- Alert views (indicators 5 to 7), on top of gold.fact_train_alerts.
 -- They count distinct trains (trip_id and date): a train affected by several
 -- alerts counts once per category, reason or line. These counts cannot be
 -- added up across categories or reasons, so the views read the fact table
 -- instead of a daily aggregate.
 
 -- Indicator 5: trains affected per category and ISO week. A train affected by
--- two categories counts in both: bars, not a pie chart. all_disruptions_trains
+-- two categories counts in both: bars, not a pie chart. all_alert_trains
 -- is the number of distinct trains affected by travaux, incident or autre.
-CREATE OR REPLACE VIEW gold.weekly_disruption_categories AS
+CREATE OR REPLACE VIEW gold.weekly_alert_categories AS
 WITH trains AS (
   SELECT DISTINCT
     DATE_TRUNC(date, ISOWEEK) AS week_start,
     category,
     trip_id,
     date
-  FROM gold.fact_trip_disruptions
+  FROM gold.fact_train_alerts
 )
 SELECT
   t.week_start,
   w.is_complete_week,
   t.category,
   COUNT(*) AS affected_trains,
-  a.all_disruptions_trains
+  a.all_alert_trains
 FROM trains AS t
 LEFT JOIN (
-  SELECT week_start, COUNT(DISTINCT CONCAT(trip_id, '|', CAST(date AS STRING))) AS all_disruptions_trains
+  SELECT week_start, COUNT(DISTINCT CONCAT(trip_id, '|', CAST(date AS STRING))) AS all_alert_trains
   FROM trains
   WHERE category <> 'information_voyageur'
   GROUP BY week_start
@@ -205,7 +205,7 @@ LEFT JOIN (
   ON t.week_start = a.week_start
 LEFT JOIN gold.weekly_network AS w
   ON t.week_start = w.week_start
-GROUP BY t.week_start, w.is_complete_week, t.category, a.all_disruptions_trains;
+GROUP BY t.week_start, w.is_complete_week, t.category, a.all_alert_trains;
 
 
 -- Indicator 6: trains affected per incident reason and ISO week, with the
@@ -216,7 +216,7 @@ WITH weekly AS (
     DATE_TRUNC(date, ISOWEEK) AS week_start,
     reason,
     COUNT(DISTINCT CONCAT(trip_id, '|', CAST(date AS STRING))) AS affected_trains
-  FROM gold.fact_trip_disruptions
+  FROM gold.fact_train_alerts
   WHERE category = 'incident'
   GROUP BY week_start, reason
 )
@@ -237,7 +237,7 @@ WITH weekly AS (
     DATE_TRUNC(date, ISOWEEK) AS week_start,
     route_id,
     COUNT(DISTINCT CONCAT(trip_id, '|', CAST(date AS STRING))) AS affected_trains
-  FROM gold.fact_trip_disruptions
+  FROM gold.fact_train_alerts
   WHERE category = 'travaux'
   GROUP BY week_start, route_id
 ),

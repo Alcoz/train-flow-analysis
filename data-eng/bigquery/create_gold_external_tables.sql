@@ -47,12 +47,12 @@ OPTIONS (
   hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_alerts'
 );
 
-CREATE OR REPLACE EXTERNAL TABLE gold.fact_trip_disruptions
+CREATE OR REPLACE EXTERNAL TABLE gold.fact_train_alerts
 WITH PARTITION COLUMNS (date DATE)
 OPTIONS (
   format = 'PARQUET',
-  uris = ['gs://sncf-bucket/data/gold/fact_trip_disruptions/*'],
-  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_trip_disruptions'
+  uris = ['gs://sncf-bucket/data/gold/fact_train_alerts/*'],
+  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_train_alerts'
 );
 
 CREATE OR REPLACE EXTERNAL TABLE gold.dim_routes

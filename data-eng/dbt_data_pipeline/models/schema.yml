@@ -82,7 +82,7 @@ models:
     description: "One row per train of the service date: announced trains (int_planned_trains) and trains added in real time, with their status, observation and delay at the effective terminus."
     config:
       meta:
-        purpose: "Train-level grain of indicators 1 to 4, source of agg_daily_route and fact_trip_disruptions."
+        purpose: "Train-level grain of indicators 1 to 4, source of agg_daily_route and fact_train_alerts."
         status: active
       contract: {enforced: true}
     constraints:
@@ -205,7 +205,7 @@ models:
         data_type: bigint
         data_tests: [not_null]
 
-  - name: fact_trip_disruptions
+  - name: fact_train_alerts
     description: "One row per alert and affected train of the service date: the alert lists the train number in its last version of the day, and the day falls within one of its active periods."
     config:
       meta:
@@ -309,10 +309,10 @@ models:
                 values: ['planned', 'late_cancelled', 'deprogrammed']
 
   - name: fact_alerts
-    description: "Service alerts present in the feed on the run date, in their last version of the day, with the category and reason given by alert_classification_rules. Written to Gold so that fact_trip_disruptions, built by another job, can read it."
+    description: "Service alerts present in the feed on the run date, in their last version of the day, with the category and reason given by alert_classification_rules. Written to Gold so that fact_train_alerts, built by another job, can read it."
     config:
       meta:
-        purpose: "Classified alerts, handed over to fact_trip_disruptions through Gold."
+        purpose: "Classified alerts, handed over to fact_train_alerts through Gold."
         status: active
       contract: {enforced: true}
     constraints:

@@ -6,7 +6,7 @@
     fact_trip_runs turns them into trains.
     Built by its own job, after the alerts and delay jobs: both inputs are read
     from their Gold files of the day (see the gold_partition macro).
-    Written to {external_root}/fact_trip_disruptions/date=YYYY-MM-DD/data_0.parquet;
+    Written to {external_root}/fact_train_alerts/date=YYYY-MM-DD/data_0.parquet;
     overwrite_or_ignore only replaces the partition of this run, so the run
     must only emit rows for its own date.
 -#}

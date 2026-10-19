@@ -5,7 +5,7 @@
     have passed), so the version kept is the one of the last snapshot of the
     day: it is what the alert said about the trains of that day.
     Written to {external_root}/fact_alerts/date=YYYY-MM-DD/data_0.parquet, so
-    that fact_trip_disruptions, built by another job, can read it.
+    that fact_train_alerts, built by another job, can read it.
     overwrite_or_ignore only replaces the partition of this run.
 -#}
 {{

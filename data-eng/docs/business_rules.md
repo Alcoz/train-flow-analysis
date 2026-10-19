@@ -13,7 +13,7 @@ This document describes the definitions and rules used to build the punctuality 
 | **Train** | One trip × one service day. This is the counting unit of every indicator. | Train 862402 on Monday 12/10 |
 | **Train number** | Identifier that repeats from one day to the next, with no date. This is what alerts refer to. | `OCESN862402F` |
 | **Planned train** | Train present in that day's theoretical GTFS: its `service_id` (`trips`) has the date in `calendar_dates`. | — |
-| **Alert** | Disruption message from the GTFS-RT *service alerts* feed. It lists train numbers and one active period. | "Votre train est retardé. Cause : …" |
+| **Alert** | Message from the GTFS-RT *service alerts* feed. It lists train numbers and one active period. | "Votre train est retardé. Cause : …" |
 
 To get the train number from a GTFS `trip_id`, cut it after the first letter that follows the digits:
 `OCESN862402F1187_F:TER:…` → `OCESN862402F`.
@@ -41,7 +41,7 @@ Weekly views are created in BigQuery by [`create_weekly_views.sql`](../bigquery/
 - `gold.weekly_network`: whole network per ISO week, with `days_in_week`, `is_complete_week` (7 days present) and `min_daily_observed_share` (lowest daily share of announced trains seen in real time) to spot and remove incomplete weeks.
 - `gold.weekly_route`: per line and week, with the ranks of the worst-lines visuals (`delay_rank`, `late_cancelled_rank`), the values of the week before and `weeks_in_lead_*`, the number of consecutive weeks the line has been first. Trains added in real time (null line) are not ranked.
 
-Indicators 5 to 7 come from the views `gold.weekly_disruption_categories`, `gold.weekly_incident_reasons` and `gold.weekly_works_routes` ✅. They count distinct trains, which cannot be added up across categories or reasons (a train can be affected by several alerts), so they read `fact_trip_disruptions` directly instead of a daily aggregate. On 12/10/2026 morning: 2,773 trains affected by works, 574 by incidents and 82 by `autre`, but 3,236 distinct trains in total.
+Indicators 5 to 7 come from the views `gold.weekly_alert_categories`, `gold.weekly_incident_reasons` and `gold.weekly_works_routes` ✅. They count distinct trains, which cannot be added up across categories or reasons (a train can be affected by several alerts), so they read `fact_train_alerts` directly instead of a daily aggregate. On 12/10/2026 morning: 2,773 trains affected by works, 574 by incidents and 82 by `autre`, but 3,236 distinct trains in total.
 
 Common rules:
 
@@ -110,9 +110,9 @@ Example: for "Un vol de câbles génère des anomalies de signalisation", both `
 
 | Category | Content | Example reasons |
 | --- | --- | --- |
-| `incident` | Unplanned disruption | Matériel roulant, Régulation du trafic, Retard d'un autre train, Signalisation, Passage à niveau, Non précisée… |
+| `incident` | Unplanned event | Matériel roulant, Régulation du trafic, Retard d'un autre train, Signalisation, Passage à niveau, Non précisée… |
 | `travaux` | Planned or ongoing works | Travaux |
-| `information_voyageur` | Information with no traffic disruption | Composition / quai, Capacité, Équipement / confort… |
+| `information_voyageur` | Information with no impact on traffic | Composition / quai, Capacité, Équipement / confort… |
 | `autre` | No rule matches | — |
 
 Measured on 5,413 alerts from 07/10 to 15/10/2026: incident 79.9%, passenger information 11.3%, works 8.1%, other 0.7%. A specific reason is found for 93% of incidents.
@@ -124,7 +124,7 @@ Measured on 5,413 alerts from 07/10 to 15/10/2026: incident 79.9%, passenger inf
 
 ## 4. Linking alerts to trains
 
-An alert lists **train numbers** and **a single active period**. It does not say on which day each number is affected. ✅ Implemented in [`fact_trip_disruptions`](../dbt_data_pipeline/models/warehouse/fact_trip_disruptions.sql), one row per alert and affected train; active periods (UTC) are converted to Paris time before checking that they overlap day D.
+An alert lists **train numbers** and **a single active period**. It does not say on which day each number is affected. ✅ Implemented in [`fact_train_alerts`](../dbt_data_pipeline/models/warehouse/fact_train_alerts.sql), one row per alert and affected train; active periods (UTC) are converted to Paris time before checking that they overlap day D.
 
 **Rule:** a train of day D is affected by an alert when, **in the last snapshot of day D**, the alert lists its number **and** D falls within the alert's active period.
 

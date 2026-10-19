@@ -32,8 +32,8 @@ sncf_alerts_preparation_job = dg.define_asset_job(
 
 # Alerts linked to trains (indicators 5 to 7): reads the Gold files of the
 # day written by the two jobs above, so it runs after them.
-sncf_disruptions_preparation_job = dg.define_asset_job(
-    name="sncf_disruptions_preparation_job",
-    selection=dg.AssetSelection.assets("fact_trip_disruptions"),
+sncf_train_alerts_preparation_job = dg.define_asset_job(
+    name="sncf_train_alerts_preparation_job",
+    selection=dg.AssetSelection.assets("fact_train_alerts"),
     partitions_def=alerts_partitions,
 )

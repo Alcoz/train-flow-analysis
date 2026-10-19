@@ -16,8 +16,8 @@ sncf_alerts_preparation_schedule = dg.build_schedule_from_partitioned_job(
 )
 
 # After the two jobs above, whose Gold files of the day it reads.
-sncf_disruptions_preparation_schedule = dg.build_schedule_from_partitioned_job(
-    sncf_transformations_jobs.sncf_disruptions_preparation_job,
+sncf_train_alerts_preparation_schedule = dg.build_schedule_from_partitioned_job(
+    sncf_transformations_jobs.sncf_train_alerts_preparation_job,
     hour_of_day=3,
     minute_of_hour=30,
 )
