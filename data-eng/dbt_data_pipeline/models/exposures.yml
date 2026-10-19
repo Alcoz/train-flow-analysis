@@ -29,15 +29,3 @@ exposures:
     owner:
       name: Baptiste Darnala
 
-  - name: delay_analysis
-    label: Delay distribution per line (ad hoc)
-    type: analysis
-    maturity: low
-    description: >
-      Ad hoc query data-eng/bigquery/delay_analysis.sql: delay mean, spread and
-      percentiles per line over the last 30 days.
-    depends_on:
-      - ref('fact_train_trips')
-      - ref('dim_routes')
-    owner:
-      name: Baptiste Darnala

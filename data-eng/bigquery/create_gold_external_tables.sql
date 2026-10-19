@@ -20,14 +20,6 @@ OPTIONS (location = 'EU');
 -- DuckDB drops the partition column from the files, so `date` only comes
 -- from the folder name through hive partitioning.
 
-CREATE OR REPLACE EXTERNAL TABLE gold.fact_train_trips
-WITH PARTITION COLUMNS (date DATE)
-OPTIONS (
-  format = 'PARQUET',
-  uris = ['gs://sncf-bucket/data/gold/fact_train_trips/*'],
-  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_train_trips'
-);
-
 CREATE OR REPLACE EXTERNAL TABLE gold.fact_trip_runs
 WITH PARTITION COLUMNS (date DATE)
 OPTIONS (
@@ -63,28 +55,12 @@ OPTIONS (
   hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_trip_disruptions'
 );
 
-CREATE OR REPLACE EXTERNAL TABLE gold.dim_trips
-WITH PARTITION COLUMNS (date DATE)
-OPTIONS (
-  format = 'PARQUET',
-  uris = ['gs://sncf-bucket/data/gold/dim_trips/*'],
-  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/dim_trips'
-);
-
 CREATE OR REPLACE EXTERNAL TABLE gold.dim_routes
 WITH PARTITION COLUMNS (date DATE)
 OPTIONS (
   format = 'PARQUET',
   uris = ['gs://sncf-bucket/data/gold/dim_routes/*'],
   hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/dim_routes'
-);
-
-CREATE OR REPLACE EXTERNAL TABLE gold.dim_stops
-WITH PARTITION COLUMNS (date DATE)
-OPTIONS (
-  format = 'PARQUET',
-  uris = ['gs://sncf-bucket/data/gold/dim_stops/*'],
-  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/dim_stops'
 );
 
 

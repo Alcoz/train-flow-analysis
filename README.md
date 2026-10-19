@@ -32,8 +32,9 @@ The pipeline follows a **Bronze / Silver / Gold** (medallion) architecture, orch
           │ dbt build (DuckDB, reads/writes S3 through httpfs)
           ▼
  ┌─────────────────────────────────────────────────────────┐
- │ Gold     data/gold/{dim_dates, dim_routes, dim_stops,    │
- │                     dim_trips, fact_train_trips}/date=…  │
+ │ Gold     data/gold/{dim_routes, fact_trip_runs,         │
+ │            agg_daily_route, fact_alerts,                │
+ │            fact_trip_disruptions}/date=…, dim_dates     │
  └─────────────────────────────────────────────────────────┘
 ```
 
@@ -59,11 +60,12 @@ The dbt project in [`data-eng/dbt_data_pipeline`](data-eng/dbt_data_pipeline) ru
 
 - `dim_dates` — calendar dimension (via `dbt_date`)
 - `dim_routes` — daily snapshot of routes, with terminal stations parsed from the route name
-- `dim_stops` — daily snapshot of stop areas and stop points, with coordinates
-- `dim_trips` — daily snapshot of scheduled trips
-- `fact_train_trips` — one row per trip, stop and service date: min/max/last known departure and arrival delays, and first/last time the trip was seen in the feed
+- `fact_trip_runs` — one row per train of the service date (announced or added in real time), with its status and delay at the effective terminus
+- `agg_daily_route` — daily counts per line, behind the weekly delay and cancellation views
+- `fact_alerts` — service alerts of the day, classified by category and reason
+- `fact_trip_disruptions` — one row per alert and affected train, behind the weekly disruption views
 
-Models enforce contracts and are covered by dbt tests (uniqueness, not-null, accepted values, multi-column relationships). Dagster loads the dbt project as assets, so the whole lineage from Bronze to Gold is visible in one graph.
+Models enforce contracts and are covered by dbt tests (uniqueness, not-null, accepted values, relationships). Each model states its `purpose` and `status` in `meta`, and [`exposures.yml`](data-eng/dbt_data_pipeline/models/exposures.yml) declares the BigQuery views that read them: a model with no exposure downstream is unused. Dagster loads the dbt project as assets, so the whole lineage from Bronze to Gold is visible in one graph.
 
 ### Jobs and schedules
 

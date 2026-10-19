@@ -12,10 +12,7 @@ sncf_delay_preparation_job = dg.define_asset_job(
         | dg.AssetSelection.assets("sncf_silver_continue_data")
         | dg.AssetSelection.assets("dim_dates")
         | dg.AssetSelection.assets("dim_routes")
-        | dg.AssetSelection.assets("dim_stops")
-        | dg.AssetSelection.assets("dim_trips")
         | dg.AssetSelection.assets("int_planned_trains")
-        | dg.AssetSelection.assets("fact_train_trips")
         | dg.AssetSelection.assets("fact_trip_runs")
         | dg.AssetSelection.assets("agg_daily_route")
     ),
