@@ -82,7 +82,7 @@ The standard `cause` and `effect` fields of the alerts carry almost no informati
 - `cause` only takes two values: `MAINTENANCE` (reliable for works) and `OTHER_CAUSE` ("something else"). It is missing for about 12% of alerts.
 
 Classification is therefore based on the alert **text**, using the rules table [`alert_classification_rules.csv`](../dbt_data_pipeline/seeds/alert_classification_rules.csv). ✅
-The rules are applied by [`fact_alerts`](../dbt_data_pipeline/models/warehouse/fact_alerts.sql), to the last version of the day of each alert present in the feed. ✅
+The rules are applied by [`dim_alerts`](../dbt_data_pipeline/models/warehouse/dim_alerts.sql), to the last version of the day of each alert present in the feed. ✅
 
 ### How it works
 
@@ -124,7 +124,7 @@ Measured on 5,413 alerts from 07/10 to 15/10/2026: incident 79.9%, passenger inf
 
 ## 4. Linking alerts to trains
 
-An alert lists **train numbers** and **a single active period**. It does not say on which day each number is affected. ✅ Implemented in [`fact_train_alerts`](../dbt_data_pipeline/models/warehouse/fact_train_alerts.sql), one row per alert and affected train; active periods (UTC) are converted to Paris time before checking that they overlap day D.
+An alert lists **train numbers** and **a single active period**. It does not say on which day each number is affected. ✅ Implemented in [`fact_train_alerts`](../dbt_data_pipeline/models/warehouse/fact_train_alerts.sql), one row per alert and affected train; active periods (UTC) are converted to Paris time before checking that they overlap day D. The category and reason of the alert are not copied: they stay in [`dim_alerts`](../dbt_data_pipeline/models/warehouse/dim_alerts.sql), joined on the alert and the day.
 
 **Rule:** a train of day D is affected by an alert when, **in the last snapshot of day D**, the alert lists its number **and** D falls within the alert's active period.
 

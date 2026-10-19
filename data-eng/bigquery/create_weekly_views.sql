@@ -171,7 +171,8 @@ LEFT JOIN late_cancelled_leaders AS c
   ON r.week_start = c.week_start AND r.route_id = c.route_id;
 
 
--- Alert views (indicators 5 to 7), on top of gold.fact_train_alerts.
+-- Alert views (indicators 5 to 7), on top of gold.fact_train_alerts, with the
+-- category and reason of each alert from gold.dim_alerts (same alert_id and day).
 -- They count distinct trains (trip_id and date): a train affected by several
 -- alerts counts once per category, reason or line. These counts cannot be
 -- added up across categories or reasons, so the views read the fact table
@@ -188,6 +189,7 @@ WITH trains AS (
     trip_id,
     date
   FROM gold.fact_train_alerts
+  INNER JOIN gold.dim_alerts USING (alert_id, date)
 )
 SELECT
   t.week_start,
@@ -217,6 +219,7 @@ WITH weekly AS (
     reason,
     COUNT(DISTINCT CONCAT(trip_id, '|', CAST(date AS STRING))) AS affected_trains
   FROM gold.fact_train_alerts
+  INNER JOIN gold.dim_alerts USING (alert_id, date)
   WHERE category = 'incident'
   GROUP BY week_start, reason
 )
@@ -238,6 +241,7 @@ WITH weekly AS (
     route_id,
     COUNT(DISTINCT CONCAT(trip_id, '|', CAST(date AS STRING))) AS affected_trains
   FROM gold.fact_train_alerts
+  INNER JOIN gold.dim_alerts USING (alert_id, date)
   WHERE category = 'travaux'
   GROUP BY week_start, route_id
 ),

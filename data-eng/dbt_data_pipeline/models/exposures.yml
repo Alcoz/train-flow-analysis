@@ -24,6 +24,7 @@ exposures:
       They also read gold.weekly_network, so they depend on agg_daily_route.
     depends_on:
       - ref('fact_train_alerts')
+      - ref('dim_alerts')
       - ref('agg_daily_route')
       - ref('dim_routes')
     owner:

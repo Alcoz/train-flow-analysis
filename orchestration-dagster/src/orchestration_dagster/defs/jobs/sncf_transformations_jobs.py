@@ -25,7 +25,7 @@ sncf_alerts_preparation_job = dg.define_asset_job(
     selection=(
         dg.AssetSelection.assets("sncf_silver_alerts_data")
         | dg.AssetSelection.assets("alert_classification_rules")
-        | dg.AssetSelection.assets("fact_alerts")
+        | dg.AssetSelection.assets("dim_alerts")
     ),
     partitions_def=alerts_partitions,
 )

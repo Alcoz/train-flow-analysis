@@ -4,6 +4,8 @@
     lists its train number and D falls within an active period of the alert
     (see business_rules.md). Alerts only give train numbers, with no date:
     fact_trip_runs turns them into trains.
+    Alert attributes (category, reason, texts) stay in dim_alerts, joined on
+    alert_id and date.
     Built by its own job, after the alerts and delay jobs: both inputs are read
     from their Gold files of the day (see the gold_partition macro).
     Written to {external_root}/fact_train_alerts/date=YYYY-MM-DD/data_0.parquet;
@@ -21,17 +23,14 @@
     )
 }}
 
--- depends_on: {{ ref("fact_alerts") }}
+-- depends_on: {{ ref("dim_alerts") }}
 -- depends_on: {{ ref("fact_trip_runs") }}
 
 WITH alert_trains AS (
     SELECT DISTINCT
         a.alert_id,
-        a.category,
-        a.reason,
-        a.rule_id,
         e.entity.trip_id AS train_number
-    FROM {{ gold_partition("fact_alerts") }} AS a,
+    FROM {{ gold_partition("dim_alerts") }} AS a,
         unnest(a.informed_entities) AS e(entity)
     -- Entities with only a stop or a line are not linked to trains
     WHERE e.entity.trip_id IS NOT NULL
@@ -60,10 +59,7 @@ SELECT
     r.train_number,
     -- Null for trains added in real time
     r.route_id,
-    r.train_status,
-    a.category,
-    a.reason,
-    a.rule_id
+    r.train_status
 FROM alert_trains AS a
 INNER JOIN {{ gold_partition("fact_trip_runs") }} AS r
     ON a.train_number = r.train_number

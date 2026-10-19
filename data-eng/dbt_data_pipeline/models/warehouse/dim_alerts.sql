@@ -1,10 +1,11 @@
 {#-
-    One row per service alert present in the feed on the run date, with its
-    category and reason from the alert_classification_rules seed.
+    Alert dimension: one row per service alert present in the feed on the run
+    date, with its category and reason from the alert_classification_rules
+    seed. Daily snapshot, keyed by alert_id and date like dim_routes.
     The SNCF edits alerts over time (it removes the numbers of trains that
     have passed), so the version kept is the one of the last snapshot of the
     day: it is what the alert said about the trains of that day.
-    Written to {external_root}/fact_alerts/date=YYYY-MM-DD/data_0.parquet, so
+    Written to {external_root}/dim_alerts/date=YYYY-MM-DD/data_0.parquet, so
     that fact_train_alerts, built by another job, can read it.
     overwrite_or_ignore only replaces the partition of this run.
 -#}

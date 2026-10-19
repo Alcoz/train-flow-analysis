@@ -14,7 +14,7 @@ Column types below come from that code.
 | [`stops`](#stops) | `theory/date=D/stops.parquet` | stop area or stop point | GTFS publication day | — |
 | [`stop_times`](#other-gtfs-tables), `transfers`, `feed_info`, `agency` | `theory/date=D/<table>.parquet` | see the GTFS reference | GTFS publication day | — |
 | [`trip_updates`](#trip_updates) | `continue/date=D/<fetch day>_<HH-MM-SS>.parquet` | snapshot × trip × stop | **service date** | `fact_trip_runs` |
-| [`alerts`](#alerts) | `alerts/date=D/<HH-MM-SS>.parquet` | snapshot × alert | **fetch day** | `fact_alerts` |
+| [`alerts`](#alerts) | `alerts/date=D/<HH-MM-SS>.parquet` | snapshot × alert | **fetch day** | `dim_alerts` |
 
 Rules shared by every table:
 
@@ -103,7 +103,7 @@ snapshot it is in: picking its last state is left to `fact_trip_runs`.
 GTFS-RT service alerts, fetched every 2 minutes, one file per snapshot. Alerts
 have no service date (an active period can span weeks), so the partition is the
 **fetch day**. An alert is repeated in every snapshot it appears in: picking its
-last version of the day is left to `fact_alerts`.
+last version of the day is left to `dim_alerts`.
 
 | Column | Type | Description |
 | --- | --- | --- |

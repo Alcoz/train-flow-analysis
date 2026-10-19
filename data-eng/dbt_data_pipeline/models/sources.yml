@@ -38,7 +38,7 @@ sources:
           dagster:
             asset_key: ["sncf_silver_theoretical_data", "stops"]
 
-      # Every fetch day (date=*), filtered on the file name by fact_alerts: a
+      # Every fetch day (date=*), filtered on the file name by dim_alerts: a
       # glob on a single day would fail before 2026-10-07, when alerts were
       # not collected yet, instead of returning no rows.
       - name: alerts
