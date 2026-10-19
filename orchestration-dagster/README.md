@@ -93,4 +93,4 @@ uv run pytest orchestration-dagster/tests
 In production, the Docker stack (`make docker-up`) runs the code server, the webserver
 and the daemon, which launches the schedules and sensors. After the first Gold days are
 built, the BigQuery scripts of data-eng must be run once: see
-[data-eng/README.md](../data-eng/README.md#56-bigquery).
+[data-eng/README.md](../data-eng/README.md#67-bigquery).

@@ -29,9 +29,12 @@ Each step reads what the previous one wrote in the bucket.
 | 1 | Download the feeds (Bronze) | [`sncf_getter.py`](src/data_eng/sncf_getter.py) | SNCF URLs | raw bytes, to store under `data/bronze/` |
 | 2 | Convert to tables (Silver) | [`sncf_transformer.py`](src/data_eng/sncf_transformer.py) | Bronze | Polars dataframes, to store as Parquet under `data/silver/` |
 | 3 | Build Gold, delays | dbt, `tag:daily` | Silver GTFS and trip updates | `dim_dates`, `dim_routes`, `fact_train_trips`, `agg_daily_route` |
-| 4 | Build Gold, alerts | dbt, `tag:alerts` | Silver alerts, Gold `fact_train_trips` | `dim_alerts`, `fact_train_alerts` |
-| 5 | Expose Gold in BigQuery | [`create_gold_external_tables.sql`](bigquery/create_gold_external_tables.sql) | Gold Parquet files | `gold.*` external tables |
-| 6 | Weekly views | [`create_weekly_views.sql`](bigquery/create_weekly_views.sql) | `gold.*` tables | `gold.weekly_*` views |
+| 4 | Build Gold, alert dimension | dbt, `dim_alerts` | Silver alerts, seed `alert_classification_rules` | `dim_alerts` |
+| 5 | Link alerts to trains | dbt, `fact_train_alerts` | Gold `dim_alerts` and `fact_train_trips` of the day | `fact_train_alerts` |
+| 6 | Expose Gold in BigQuery | [`create_gold_external_tables.sql`](bigquery/create_gold_external_tables.sql) | Gold Parquet files | `gold.*` external tables |
+| 7 | Weekly views | [`create_weekly_views.sql`](bigquery/create_weekly_views.sql) | `gold.*` tables | `gold.weekly_*` views |
+
+Steps 3 and 4 are independent: they can run at the same time. Step 5 needs both.
 
 ### 1–2. Python: Bronze and Silver
 
@@ -53,23 +56,26 @@ trip_updates = sncf_trip_updates_protobuf_to_sheets(snapshot)  # dataframe (Silv
 dbt only reads Silver at the paths and with the partitioning described in
 [docs/silver_tables.md](docs/silver_tables.md): the caller must write the files there.
 
-### 3–4. dbt: Gold
+### 3–5. dbt: Gold
 
-dbt builds one day, given by the `today` var. Run `tag:daily` first:
-`fact_train_alerts` (`tag:alerts`) reads the `fact_train_trips` file of the same day.
+dbt builds one day, given by the `today` var.
 
 ```bash
 cd data-eng/dbt_data_pipeline
 uv run dbt deps
-uv run dbt build --select tag:daily --vars '{today: 2026-10-15}'
-uv run dbt build --select tag:alerts --vars '{today: 2026-10-15}'
+uv run dbt build --select tag:daily --vars '{today: 2026-10-15}'                               # step 3
+uv run dbt build --select alert_classification_rules dim_alerts --vars '{today: 2026-10-15}'  # step 4
+uv run dbt build --select fact_train_alerts --vars '{today: 2026-10-15}'                       # step 5, after 3 and 4
 ```
+
+`fact_train_alerts` does not use the tables built in the same run: it reads the
+Gold files of the day of `dim_alerts` and `fact_train_trips`, so both must be written first.
 
 Build day D once the trip updates fetched on D+1 are in Silver: overnight trains
 of day D keep sending updates after midnight.
 Each run uses an in-memory DuckDB: models of the two tags only share their Gold files.
 
-### 5–6. BigQuery
+### 6–7. BigQuery
 
 Run the two scripts in the BigQuery console, in this order, after at least one
 day of Gold is built (BigQuery reads the schema of an external table from its files).
