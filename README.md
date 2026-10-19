@@ -32,8 +32,9 @@ The pipeline follows a **Bronze / Silver / Gold** (medallion) architecture, orch
           │ dbt build (DuckDB, reads/writes S3 through httpfs)
           ▼
  ┌─────────────────────────────────────────────────────────┐
- │ Gold     data/gold/{dim_dates, dim_routes, dim_stops,    │
- │                     dim_trips, fact_train_trips}/date=…  │
+ │ Gold     data/gold/{dim_routes, fact_train_trips,       │
+ │            agg_daily_route, dim_alerts,                 │
+ │            fact_train_alerts}/date=…, dim_dates         │
  └─────────────────────────────────────────────────────────┘
 ```
 
@@ -41,7 +42,7 @@ The pipeline follows a **Bronze / Silver / Gold** (medallion) architecture, orch
 
 - `sncf_bronze_theoretical_data` downloads the [SNCF GTFS archive](https://ressources.data.sncf.com/explore/dataset/horaires-sncf/information/) once a day and stores it unchanged. An asset check warns (without blocking) when `trips.txt`, `routes.txt` or `stops.txt` is missing or empty.
 - `sncf_bronze_continue_data` fetches the [GTFS-RT trip updates feed](https://transport.data.gouv.fr/) every 2 minutes and stores each protobuf snapshot.
-- `sncf_bronze_service_alerts_data` fetches the GTFS-RT service alerts feed (disruptions with their cause, effect and affected routes, trips and stops) every 2 minutes and stores each snapshot under `data/bronze/alerts/year=/month=/day=/HH-MM-SS.pb`.
+- `sncf_bronze_service_alerts_data` fetches the GTFS-RT service alerts feed (messages with their cause, effect and affected routes, trips and stops) every 5 minutes and stores each snapshot under `data/bronze/alerts/year=/month=/day=/HH-MM-SS.pb`.
 
 Raw data is kept as-is, so any later layer can be rebuilt from Bronze.
 
@@ -53,17 +54,20 @@ Silver assets are **partitioned by day** (`Europe/Paris`) and idempotent: rebuil
 - `sncf_silver_alerts_data` converts each service alerts snapshot of the day into one Parquet file under `data/silver/alerts/date=YYYY-MM-DD/`, with one row per alert: cause and effect (null when the SNCF did not set them), French header and description cleaned of their HTML, and the active periods and targeted train numbers as lists. Alerts have no service date, so they are stored by **fetch date**.
 - `sncf_silver_continue_data` flattens the trip updates (one row per trip and stop, with departure/arrival times and delays). Data is stored by **service date** rather than fetch date: overnight trains keep sending updates after midnight, so the next day's snapshots are read too. This is why the daily job runs at 03:00 for the previous day.
 
+Columns, grain and partitioning of every Silver table: [`data-eng/docs/silver_tables.md`](data-eng/docs/silver_tables.md).
+
 ### Warehouse (Gold)
 
 The dbt project in [`data-eng/dbt_data_pipeline`](data-eng/dbt_data_pipeline) runs on DuckDB and writes external Parquet tables back to S3, partitioned by date:
 
 - `dim_dates` — calendar dimension (via `dbt_date`)
 - `dim_routes` — daily snapshot of routes, with terminal stations parsed from the route name
-- `dim_stops` — daily snapshot of stop areas and stop points, with coordinates
-- `dim_trips` — daily snapshot of scheduled trips
-- `fact_train_trips` — one row per trip, stop and service date: min/max/last known departure and arrival delays, and first/last time the trip was seen in the feed
+- `fact_train_trips` — one row per train of the service date (announced or added in real time), with its status and delay at the effective terminus
+- `agg_daily_route` — daily counts per line, behind the weekly delay and cancellation views
+- `dim_alerts` — service alerts of the day, classified by category and reason
+- `fact_train_alerts` — one row per alert and affected train, behind the weekly alert views
 
-Models enforce contracts and are covered by dbt tests (uniqueness, not-null, accepted values, multi-column relationships). Dagster loads the dbt project as assets, so the whole lineage from Bronze to Gold is visible in one graph.
+Models enforce contracts and are covered by dbt tests (uniqueness, not-null, accepted values, relationships). Each model states its `purpose` and `status` in `meta`, and [`exposures.yml`](data-eng/dbt_data_pipeline/models/exposures.yml) declares the BigQuery views that read them: a model with no exposure downstream is unused. Dagster loads the dbt project as assets, so the whole lineage from Bronze to Gold is visible in one graph.
 
 ### Jobs and schedules
 
@@ -71,10 +75,10 @@ Models enforce contracts and are covered by dbt tests (uniqueness, not-null, acc
 |------------------------------|------------------------------|------------------------------------|
 | `theoretical_getter_job`     | Bronze GTFS                  | Every day at 10:30                 |
 | `trip_update_getter_job`     | Bronze GTFS-RT               | Every 2 minutes                    |
-| `service_alerts_getter_job`  | Bronze GTFS-RT alerts        | Every 2 minutes                    |
+| `service_alerts_getter_job`  | Bronze GTFS-RT alerts        | Every 5 minutes                    |
 | `sncf_delay_preparation_job` | Silver GTFS and GTFS-RT, Gold delay and cancellation models (partitions since 2026-09-14) | Every day at 03:00, previous day's partition |
-| `sncf_alerts_preparation_job` | Silver alerts, `fact_alerts` (partitions since 2026-10-07, start of the alerts collection) | Every day at 03:00, previous day's partition |
-| `sncf_disruptions_preparation_job` | `fact_trip_disruptions`, from the Gold files of the two jobs above | Every day at 03:30, previous day's partition |
+| `sncf_alerts_preparation_job` | Silver alerts, `dim_alerts` (partitions since 2026-10-07, start of the alerts collection) | Every day at 03:00, previous day's partition |
+| `sncf_train_alerts_preparation_job` | `fact_train_alerts`, from the Gold files of the two jobs above | Every day at 03:30, previous day's partition |
 
 A job has a single partitions definition, so assets starting on different dates are in different jobs. The DuckDB of each dbt run is in memory: jobs only share Gold files. The dbt project is loaded by two Dagster components (`dbt_ingest` for `tag:daily`, `dbt_alerts` for `tag:alerts`), one per partitions definition.
 
@@ -161,7 +165,7 @@ make dagster-postgres   # start the Postgres backend for Dagster
 make dagster-run        # start Dagster in development mode
 ```
 
-Then open [http://localhost:3000](http://localhost:3000) to materialize assets, launch backfills or enable the schedules.
+Then open [http://localhost:3000](http://localhost:3000) to materialize assets, launch backfills or enable the schedules. The processing steps and their order, from Python to BigQuery, are described in [`data-eng/README.md`](data-eng/README.md).
 
 dbt can also be run on its own:
 

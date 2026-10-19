@@ -89,7 +89,7 @@ def get_sncf_trip_update_train_data():
 def get_sncf_service_alerts_data():
     """Getter of the service alerts of the sncf.
 
-    Alerts describe the disruptions (cause, effect, affected routes, trips
+    Alerts describe service events (cause, effect, affected routes, trips
     and stops) and their active periods.
 
     Returns:

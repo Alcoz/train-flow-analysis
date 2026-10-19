@@ -12,11 +12,8 @@ sncf_delay_preparation_job = dg.define_asset_job(
         | dg.AssetSelection.assets("sncf_silver_continue_data")
         | dg.AssetSelection.assets("dim_dates")
         | dg.AssetSelection.assets("dim_routes")
-        | dg.AssetSelection.assets("dim_stops")
-        | dg.AssetSelection.assets("dim_trips")
         | dg.AssetSelection.assets("int_planned_trains")
         | dg.AssetSelection.assets("fact_train_trips")
-        | dg.AssetSelection.assets("fact_trip_runs")
         | dg.AssetSelection.assets("agg_daily_route")
     ),
     partitions_def=daily_partitions,
@@ -28,15 +25,15 @@ sncf_alerts_preparation_job = dg.define_asset_job(
     selection=(
         dg.AssetSelection.assets("sncf_silver_alerts_data")
         | dg.AssetSelection.assets("alert_classification_rules")
-        | dg.AssetSelection.assets("fact_alerts")
+        | dg.AssetSelection.assets("dim_alerts")
     ),
     partitions_def=alerts_partitions,
 )
 
 # Alerts linked to trains (indicators 5 to 7): reads the Gold files of the
 # day written by the two jobs above, so it runs after them.
-sncf_disruptions_preparation_job = dg.define_asset_job(
-    name="sncf_disruptions_preparation_job",
-    selection=dg.AssetSelection.assets("fact_trip_disruptions"),
+sncf_train_alerts_preparation_job = dg.define_asset_job(
+    name="sncf_train_alerts_preparation_job",
+    selection=dg.AssetSelection.assets("fact_train_alerts"),
     partitions_def=alerts_partitions,
 )

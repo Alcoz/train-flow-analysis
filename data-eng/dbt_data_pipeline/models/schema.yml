@@ -2,6 +2,9 @@ models:
   - name: dim_routes
     description: "Daily snapshots of the train routes from the theoretical GTFS feed."
     config:
+      meta:
+        purpose: "Line names of the weekly views."
+        status: active
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -38,89 +41,12 @@ models:
         data_type: date
         data_tests: [not_null]
 
-  - name: dim_trips
-    description: "Daily snapshots of the scheduled trips from the theoretical GTFS feed."
-    config:
-      contract: {enforced: true}
-    constraints:
-      - type: primary_key
-        columns: [trip_id, date]
-        warn_unsupported: false
-    data_tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns: [trip_id, date]
-      - relationships_multi:
-          arguments:
-            to: ref('dim_routes')
-            columns: [route_id, date]
-            to_columns: [route_id, date]
-    columns:
-      - name: trip_id
-        data_type: varchar
-        data_tests: [not_null]
-      - name: route_id
-        data_type: varchar
-        data_tests: [not_null]
-      - name: direction_id
-        data_type: bigint
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: [0, 1]
-                quote: false
-      - name: date
-        description: "Date of the theoretical GTFS version this row comes from."
-        data_type: date
-        data_tests: [not_null]
-
-  - name: dim_stops
-    description: "Daily snapshots of the stops (stop areas and stop points) from the theoretical GTFS feed."
-    config:
-      contract: {enforced: true}
-    constraints:
-      - type: primary_key
-        columns: [stop_id, date]
-        warn_unsupported: false
-    data_tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns: [stop_id, date]
-      - relationships_multi:
-          arguments:
-            to: ref('dim_stops')
-            columns: [parent_station, date]
-            to_columns: [stop_id, date]
-    columns:
-      - name: stop_id
-        data_type: varchar
-        data_tests: [not_null]
-      - name: stop_name
-        data_type: varchar
-        data_tests: [not_null]
-      - name: stop_lat
-        data_type: double
-      - name: stop_lon
-        data_type: double
-      - name: location_type
-        description: "0 = stop point (platform), 1 = stop area (station)."
-        data_type: bigint
-        data_tests:
-          - accepted_values:
-              arguments:
-                values: [0, 1]
-                quote: false
-      - name: parent_station
-        description: "Stop area of a stop point, null for stop areas."
-        data_type: varchar
-      - name: date
-        description: "Date of the theoretical GTFS version this row comes from."
-        data_type: date
-        data_tests: [not_null]
-
   - name: dim_dates
     description: "Calendar dimension, one row per day."
     config:
+      meta:
+        purpose: "Calendar checked by the relationships tests of fact_train_trips."
+        status: active
       contract: {enforced: true}
     columns:
       - name: date_day
@@ -153,84 +79,11 @@ models:
         data_type: integer
 
   - name: fact_train_trips
-    description: "Real-time delays aggregated per trip, stop and service date."
-    config:
-      contract: {enforced: true}
-    # Foreign keys are checked by relationships tests: DuckDB rejects FK
-    # constraints that reference the views created by external models.
-    constraints:
-      - type: primary_key
-        columns: [trip_id, stop_id, date]
-        warn_unsupported: false
-    data_tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns: [trip_id, stop_id, date]
-      - relationships_multi:
-          arguments:
-            to: ref('dim_trips')
-            columns: [trip_id, snapshot_date]
-            to_columns: [trip_id, date]
-      - relationships_multi:
-          arguments:
-            to: ref('dim_routes')
-            columns: [route_id, snapshot_date]
-            to_columns: [route_id, date]
-      - relationships_multi:
-          arguments:
-            to: ref('dim_stops')
-            columns: [stop_id, snapshot_date]
-            to_columns: [stop_id, date]
-    columns:
-      - name: trip_id
-        data_type: varchar
-        data_tests: [not_null]
-      - name: route_id
-        data_type: varchar
-      - name: stop_id
-        data_type: varchar
-        data_tests: [not_null]
-      - name: stop_position
-        description: "Position of the stop in the trip (0 = origin)."
-        data_type: bigint
-      - name: date
-        data_type: date
-        data_tests:
-          - not_null
-          - relationships:
-              arguments:
-                to: ref('dim_dates')
-                field: date_day
-      - name: min_departure_delay
-        description: "Smallest departure delay forecast, in seconds."
-        data_type: bigint
-      - name: max_departure_delay
-        description: "Largest departure delay forecast, in seconds."
-        data_type: bigint
-      - name: min_arrival_delay
-        description: "Smallest arrival delay forecast, in seconds."
-        data_type: bigint
-      - name: max_arrival_delay
-        description: "Largest arrival delay forecast, in seconds."
-        data_type: bigint
-      - name: last_departure_delay
-        description: "Last known departure delay, in seconds: the closest to the actual delay."
-        data_type: bigint
-      - name: last_arrival_delay
-        description: "Last known arrival delay, in seconds: the closest to the actual delay."
-        data_type: bigint
-      - name: first_fetched_at
-        data_type: timestamp
-      - name: last_fetched_at
-        data_type: timestamp
-      - name: snapshot_date
-        description: "Version (snapshot date) of dim_trips and dim_routes used to build this row."
-        data_type: date
-        data_tests: [not_null]
-
-  - name: fact_trip_runs
     description: "One row per train of the service date: announced trains (int_planned_trains) and trains added in real time, with their status, observation and delay at the effective terminus."
     config:
+      meta:
+        purpose: "Train-level grain of indicators 1 to 4, source of agg_daily_route and fact_train_alerts."
+        status: active
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -297,8 +150,11 @@ models:
         data_type: timestamp
 
   - name: agg_daily_route
-    description: "Daily counts per line from fact_trip_runs. Only counts and sums: weeks are sums of days and rates are computed when reading. Trains added in real time are under a null route_id."
+    description: "Daily counts per line from fact_train_trips. Only counts and sums: weeks are sums of days and rates are computed when reading. Trains added in real time are under a null route_id."
     config:
+      meta:
+        purpose: "Daily counts behind the weekly views of indicators 1 to 4."
+        status: active
       contract: {enforced: true}
     data_tests:
       - dbt_utils.unique_combination_of_columns:
@@ -349,9 +205,12 @@ models:
         data_type: bigint
         data_tests: [not_null]
 
-  - name: fact_trip_disruptions
-    description: "One row per alert and affected train of the service date: the alert lists the train number in its last version of the day, and the day falls within one of its active periods."
+  - name: fact_train_alerts
+    description: "One row per alert and affected train of the service date: the alert lists the train number in its last version of the day, and the day falls within one of its active periods. Keys: (alert_id, date) to dim_alerts, (route_id, date) to dim_routes, date to dim_dates. Not checked by relationships tests: the dimensions are built by other jobs, whose DuckDB this run cannot see."
     config:
+      meta:
+        purpose: "Trains affected by alerts, behind the weekly views of indicators 5 to 7."
+        status: active
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -367,10 +226,11 @@ models:
         data_type: date
         data_tests: [not_null]
       - name: alert_id
+        description: "With date, key to dim_alerts (category, reason, texts)."
         data_type: varchar
         data_tests: [not_null]
       - name: trip_id
-        description: "trip_id of the train in fact_trip_runs."
+        description: "trip_id of the train in fact_train_trips."
         data_type: varchar
         data_tests: [not_null]
       - name: train_number
@@ -381,23 +241,16 @@ models:
         description: "Line of the train; null for trains added in real time."
         data_type: varchar
       - name: train_status
-        description: "Status of the train in fact_trip_runs (planned, late_cancelled, deprogrammed, added)."
+        description: "Status of the train in fact_train_trips (planned, late_cancelled, deprogrammed, added)."
         data_type: varchar
         data_tests: [not_null]
-      - name: category
-        description: "Alert category: travaux, incident, information_voyageur or autre."
-        data_type: varchar
-        data_tests: [not_null]
-      - name: reason
-        description: "Alert reason; null for the autre category."
-        data_type: varchar
-      - name: rule_id
-        description: "Classification rule of the alert, null when none matched."
-        data_type: varchar
 
   - name: int_planned_trains
     description: "Trains announced for the run date (in at least one of the last 30 GTFS versions), with their GTFS status. Denominator of the cancellation indicators and join target of the alerts."
     config:
+      meta:
+        purpose: "Announced trains: denominator of indicators 2a to 2c and join target of the alerts."
+        status: active
       contract: {enforced: true}
     constraints:
       - type: primary_key
@@ -446,9 +299,12 @@ models:
               arguments:
                 values: ['planned', 'late_cancelled', 'deprogrammed']
 
-  - name: fact_alerts
-    description: "Service alerts present in the feed on the run date, in their last version of the day, with the category and reason given by alert_classification_rules. Written to Gold so that fact_trip_disruptions, built by another job, can read it."
+  - name: dim_alerts
+    description: "Alert dimension: service alerts present in the feed on the run date, in their last version of the day, with the category and reason given by alert_classification_rules. Daily snapshot keyed by (alert_id, date). Written to Gold so that fact_train_alerts, built by another job, can read it."
     config:
+      meta:
+        purpose: "Alert attributes (category, reason, texts) for fact_train_alerts and the weekly alert views."
+        status: active
       contract: {enforced: true}
     constraints:
       - type: primary_key

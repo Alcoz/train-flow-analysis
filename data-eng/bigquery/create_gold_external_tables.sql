@@ -28,14 +28,6 @@ OPTIONS (
   hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_train_trips'
 );
 
-CREATE OR REPLACE EXTERNAL TABLE gold.fact_trip_runs
-WITH PARTITION COLUMNS (date DATE)
-OPTIONS (
-  format = 'PARQUET',
-  uris = ['gs://sncf-bucket/data/gold/fact_trip_runs/*'],
-  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_trip_runs'
-);
-
 CREATE OR REPLACE EXTERNAL TABLE gold.agg_daily_route
 WITH PARTITION COLUMNS (date DATE)
 OPTIONS (
@@ -46,29 +38,21 @@ OPTIONS (
 
 -- active_periods and informed_entities are lists of structs: list inference
 -- reads them as ARRAY<STRUCT> instead of the raw Parquet list wrapper.
-CREATE OR REPLACE EXTERNAL TABLE gold.fact_alerts
+CREATE OR REPLACE EXTERNAL TABLE gold.dim_alerts
 WITH PARTITION COLUMNS (date DATE)
 OPTIONS (
   format = 'PARQUET',
   enable_list_inference = true,
-  uris = ['gs://sncf-bucket/data/gold/fact_alerts/*'],
-  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_alerts'
+  uris = ['gs://sncf-bucket/data/gold/dim_alerts/*'],
+  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/dim_alerts'
 );
 
-CREATE OR REPLACE EXTERNAL TABLE gold.fact_trip_disruptions
+CREATE OR REPLACE EXTERNAL TABLE gold.fact_train_alerts
 WITH PARTITION COLUMNS (date DATE)
 OPTIONS (
   format = 'PARQUET',
-  uris = ['gs://sncf-bucket/data/gold/fact_trip_disruptions/*'],
-  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_trip_disruptions'
-);
-
-CREATE OR REPLACE EXTERNAL TABLE gold.dim_trips
-WITH PARTITION COLUMNS (date DATE)
-OPTIONS (
-  format = 'PARQUET',
-  uris = ['gs://sncf-bucket/data/gold/dim_trips/*'],
-  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/dim_trips'
+  uris = ['gs://sncf-bucket/data/gold/fact_train_alerts/*'],
+  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/fact_train_alerts'
 );
 
 CREATE OR REPLACE EXTERNAL TABLE gold.dim_routes
@@ -77,14 +61,6 @@ OPTIONS (
   format = 'PARQUET',
   uris = ['gs://sncf-bucket/data/gold/dim_routes/*'],
   hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/dim_routes'
-);
-
-CREATE OR REPLACE EXTERNAL TABLE gold.dim_stops
-WITH PARTITION COLUMNS (date DATE)
-OPTIONS (
-  format = 'PARQUET',
-  uris = ['gs://sncf-bucket/data/gold/dim_stops/*'],
-  hive_partition_uri_prefix = 'gs://sncf-bucket/data/gold/dim_stops'
 );
 
 

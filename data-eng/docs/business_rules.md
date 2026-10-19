@@ -13,7 +13,7 @@ This document describes the definitions and rules used to build the punctuality 
 | **Train** | One trip × one service day. This is the counting unit of every indicator. | Train 862402 on Monday 12/10 |
 | **Train number** | Identifier that repeats from one day to the next, with no date. This is what alerts refer to. | `OCESN862402F` |
 | **Planned train** | Train present in that day's theoretical GTFS: its `service_id` (`trips`) has the date in `calendar_dates`. | — |
-| **Alert** | Disruption message from the GTFS-RT *service alerts* feed. It lists train numbers and one active period. | "Votre train est retardé. Cause : …" |
+| **Alert** | Message from the GTFS-RT *service alerts* feed. It lists train numbers and one active period. | "Votre train est retardé. Cause : …" |
 
 To get the train number from a GTFS `trip_id`, cut it after the first letter that follows the digits:
 `OCESN862402F1187_F:TER:…` → `OCESN862402F`.
@@ -41,7 +41,7 @@ Weekly views are created in BigQuery by [`create_weekly_views.sql`](../bigquery/
 - `gold.weekly_network`: whole network per ISO week, with `days_in_week`, `is_complete_week` (7 days present) and `min_daily_observed_share` (lowest daily share of announced trains seen in real time) to spot and remove incomplete weeks.
 - `gold.weekly_route`: per line and week, with the ranks of the worst-lines visuals (`delay_rank`, `late_cancelled_rank`), the values of the week before and `weeks_in_lead_*`, the number of consecutive weeks the line has been first. Trains added in real time (null line) are not ranked.
 
-Indicators 5 to 7 come from the views `gold.weekly_disruption_categories`, `gold.weekly_incident_reasons` and `gold.weekly_works_routes` ✅. They count distinct trains, which cannot be added up across categories or reasons (a train can be affected by several alerts), so they read `fact_trip_disruptions` directly instead of a daily aggregate. On 12/10/2026 morning: 2,773 trains affected by works, 574 by incidents and 82 by `autre`, but 3,236 distinct trains in total.
+Indicators 5 to 7 come from the views `gold.weekly_alert_categories`, `gold.weekly_incident_reasons` and `gold.weekly_works_routes` ✅. They count distinct trains, which cannot be added up across categories or reasons (a train can be affected by several alerts), so they read `fact_train_alerts` directly instead of a daily aggregate. On 12/10/2026 morning: 2,773 trains affected by works, 574 by incidents and 82 by `autre`, but 3,236 distinct trains in total.
 
 Common rules:
 
@@ -58,7 +58,7 @@ The GTFS removes trains before their service day: a train announced in one versi
 | **Late-cancelled** | Removed from the GTFS less than 3 days before D (missing from the D-2, D-1 or D version while an older one had it), **or** last real-time status = `CANCELED`. |
 | **Deprogrammed** | Removed from the GTFS 3 days or more before D. |
 
-The real-time feed wins over the GTFS: a train removed from the GTFS but seen running in the real-time feed is **planned** (it ran). Trains are stored in [`fact_trip_runs`](../dbt_data_pipeline/models/warehouse/fact_trip_runs.sql), one row per announced or added train, with `train_status`, `is_observed`, `is_cancelled`, `is_limited` and the raw delay at the effective terminus. ✅
+The real-time feed wins over the GTFS: a train removed from the GTFS but seen running in the real-time feed is **planned** (it ran). Trains are stored in [`fact_train_trips`](../dbt_data_pipeline/models/warehouse/fact_train_trips.sql), one row per announced or added train, with `train_status`, `is_observed`, `is_cancelled`, `is_limited` and the raw delay at the effective terminus. ✅
 
 Trains are looked up in the **30 GTFS versions** before D. **Announced trains** = every train of day D found in at least one of these versions (planned + late-cancelled + deprogrammed): the denominator of indicators 2a, 2b and 2c.
 
@@ -82,37 +82,42 @@ The standard `cause` and `effect` fields of the alerts carry almost no informati
 - `cause` only takes two values: `MAINTENANCE` (reliable for works) and `OTHER_CAUSE` ("something else"). It is missing for about 12% of alerts.
 
 Classification is therefore based on the alert **text**, using the rules table [`alert_classification_rules.csv`](../dbt_data_pipeline/seeds/alert_classification_rules.csv). ✅
-The rules are applied by [`fact_alerts`](../dbt_data_pipeline/models/warehouse/fact_alerts.sql), to the last version of the day of each alert present in the feed. ✅
+The rules are applied by [`dim_alerts`](../dbt_data_pipeline/models/warehouse/dim_alerts.sql), to the last version of the day of each alert present in the feed. ✅
 
 ### How it works
 
 1. Take the French header and description: `header || ' | ' || description`.
 2. Lowercase the text and strip accents (`lower(strip_accents(...))`).
 3. Each rule is a regex. A rule can also require a given `cause` value.
-4. When several rules match, the alert takes the one with the **lowest priority**.
+4. The rules whose regex matches the text are the **candidate rules**. The alert takes the candidate with the **lowest priority**.
 5. When no rule matches, the alert gets the `autre` category.
 
 ### Priority order
 
-| Priority | Rules | Why |
-| --- | --- | --- |
-| 10 | `cause = MAINTENANCE` → works | Only reliable signal in the feed |
-| 50 | Alert cancellation ("contrairement à ce qui a été annoncé") | Must not count as an incident |
-| 80–90 | Root causes: person struck, people on tracks, security, animal, weather, sick passenger, obstacle, strike | A cause wins over its consequence |
-| 100–140 | Consequences: infrastructure, rolling stock, staff, traffic regulation… | |
-| 150 | Works detected in the text | |
-| 300–320 | Passenger information | |
-| 800 | Incident with no reason → "Non précisée" | Safety net |
+Priorities are set in the seed, they come from no SNCF or GTFS reference. Only their order matters, and it is written in the number: the **hundreds digit is the level** of the rule, the **units its order within the level** (`303` = 3rd rule of level 3). Every priority is unique (dbt test), so no hidden tie-break decides. A new level is inserted by renumbering, never in a gap.
 
-Example: for "Un vol de câbles génère des anomalies de signalisation", both `surete` (90) and `infra_signalisation` (100) match. The reason kept is **Sûreté / malveillance**.
+| Level | Content | Why at this place |
+| --- | --- | --- |
+| 1xx | `cause = MAINTENANCE` | Only structured signal of the feed |
+| 2xx | Alert cancellation | A train that runs must not count as an incident |
+| 3xx | Root causes: person struck, animal, strike, sick passenger, weather, obstacle, people on tracks, security | A cause wins over its consequence |
+| 4xx | Technical failures: switch, power supply, level crossing, signalling, rolling stock, staff, train preparation | Precise consequence |
+| 5xx | Generic operations: crowds, late connecting train, other infrastructure, production, traffic regulation | Vague, but better than no reason |
+| 6xx | Works detected in the text | Less reliable than the `cause` field |
+| 7xx | Passenger information | No impact on traffic |
+| 8xx | Incident with no reason → "Non précisée" | Safety net |
+
+Example: for "Un vol de câbles génère des anomalies de signalisation", both `surete` (3xx) and `infra_signalisation` (4xx) match. The reason kept is **Sûreté / malveillance**.
+
+Within a level, the order of the rules was set by their `rule_id` and has not been reviewed.
 
 ### Categories
 
 | Category | Content | Example reasons |
 | --- | --- | --- |
-| `incident` | Unplanned disruption | Matériel roulant, Régulation du trafic, Retard d'un autre train, Signalisation, Passage à niveau, Non précisée… |
+| `incident` | Unplanned event | Matériel roulant, Régulation du trafic, Retard d'un autre train, Signalisation, Passage à niveau, Non précisée… |
 | `travaux` | Planned or ongoing works | Travaux |
-| `information_voyageur` | Information with no traffic disruption | Composition / quai, Capacité, Équipement / confort… |
+| `information_voyageur` | Information with no impact on traffic | Composition / quai, Capacité, Équipement / confort… |
 | `autre` | No rule matches | — |
 
 Measured on 5,413 alerts from 07/10 to 15/10/2026: incident 79.9%, passenger information 11.3%, works 8.1%, other 0.7%. A specific reason is found for 93% of incidents.
@@ -124,7 +129,7 @@ Measured on 5,413 alerts from 07/10 to 15/10/2026: incident 79.9%, passenger inf
 
 ## 4. Linking alerts to trains
 
-An alert lists **train numbers** and **a single active period**. It does not say on which day each number is affected. ✅ Implemented in [`fact_trip_disruptions`](../dbt_data_pipeline/models/warehouse/fact_trip_disruptions.sql), one row per alert and affected train; active periods (UTC) are converted to Paris time before checking that they overlap day D.
+An alert lists **train numbers** and **a single active period**. It does not say on which day each number is affected. ✅ Implemented in [`fact_train_alerts`](../dbt_data_pipeline/models/warehouse/fact_train_alerts.sql), one row per alert and affected train; active periods (UTC) are converted to Paris time before checking that they overlap day D. The category and reason of the alert are not copied: they stay in [`dim_alerts`](../dbt_data_pipeline/models/warehouse/dim_alerts.sql), joined on the alert and the day.
 
 **Rule:** a train of day D is affected by an alert when, **in the last snapshot of day D**, the alert lists its number **and** D falls within the alert's active period.
 
