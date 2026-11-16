@@ -205,6 +205,54 @@ models:
         data_type: bigint
         data_tests: [not_null]
 
+  - name: time_series_delay
+    description: "One row per announced train not cancelled and real-time snapshot while it runs, at its next stop not passed yet. Snapshots without the train get a row too: delay 0, or the last delay known for the stop when it was above 5 minutes."
+    config:
+      meta:
+        purpose: "Delay time series for the delay prediction (delay_prediction/)."
+        status: active
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [trip_id, date, fetched_at]
+        warn_unsupported: false
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [trip_id, date, fetched_at]
+    columns:
+      - name: date
+        description: "Service day."
+        data_type: date
+        data_tests: [not_null]
+      - name: trip_id
+        description: "GTFS trip_id of the train in fact_train_trips."
+        data_type: varchar
+        data_tests: [not_null]
+      - name: fetched_at
+        description: "Time of the real-time snapshot (UTC)."
+        data_type: timestamp
+        data_tests: [not_null]
+      - name: stop_id
+        description: "Next stop the train has not left yet (arrived for the terminus)."
+        data_type: varchar
+        data_tests: [not_null]
+      - name: stop_sequence
+        description: "Planned order of the stop in stop_times."
+        data_type: bigint
+        data_tests: [not_null]
+      - name: is_observed
+        description: "The train is in this snapshot of the real-time feed."
+        data_type: boolean
+        data_tests: [not_null]
+      - name: delay_raw
+        description: "Arrival delay sent for the stop in this snapshot (departure at the origin), in seconds; null when not sent."
+        data_type: bigint
+      - name: delay
+        description: "delay_raw when sent, otherwise the last delay known for the stop when above 5 minutes, otherwise 0. In seconds, negative when early."
+        data_type: bigint
+        data_tests: [not_null]
+
   - name: fact_train_alerts
     description: "One row per alert and affected train of the service date: the alert lists the train number in its last version of the day, and the day falls within one of its active periods. Keys: (alert_id, date) to dim_alerts, (route_id, date) to dim_routes, date to dim_dates. Not checked by relationships tests: the dimensions are built by other jobs, whose DuckDB this run cannot see."
     config:

@@ -40,3 +40,20 @@ sncf_train_alerts_preparation_job = dg.define_asset_job(
     selection=dg.AssetSelection.assets("fact_train_alerts"),
     partitions_def=alerts_partitions,
 )
+
+# Delay time series for the delay prediction, since 2026-09-14. No schedule:
+# launched by hand on the partitions wanted. Reads the Gold file of the day
+# of fact_train_trips, so the delay job must have built that day first.
+# int_planned_trains is not in Gold (in-memory DuckDB): rebuilt in the run.
+# The getters fetch data that cannot be fetched later: these runs leave the
+# queue after them (negative priority) and run one at a time (dagster.yaml).
+sncf_time_series_delay_job = dg.define_asset_job(
+    name="sncf_time_series_delay_job",
+    selection=(
+        dg.AssetSelection.assets("int_planned_trains")
+        | dg.AssetSelection.assets("time_series_delay")
+    ),
+    partitions_def=daily_partitions,
+    executor_def=dg.in_process_executor,
+    tags={"dagster/priority": "-1", "time_series_delay": "true"},
+)

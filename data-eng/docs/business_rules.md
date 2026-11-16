@@ -74,6 +74,20 @@ Why these values, measured on 279 trains removed before their service day (servi
 
 The two groups are clearly apart, so any cutoff between D-3 and D-13 gives the same split. Removals are seen up to 28 days ahead, the limit of the available history: hence 30 versions.
 
+### Delay time series
+
+[`time_series_delay`](../dbt_data_pipeline/models/warehouse/time_series_delay.sql) holds the delay of each train over time, for the delay prediction: one row per train and real-time snapshot (every 2 minutes) while the train runs. 🟡
+
+| Rule | Value |
+| --- | --- |
+| Trains | Announced trains not cancelled (`fact_train_trips.is_cancelled = false`). Trains added in real time are left out: they have no planned stops. |
+| Running window | From the planned departure at the origin to the latest arrival at the terminus, planned or sent by the feed. |
+| Stop of a row | The next stop the train has not left yet. A stop is left when its departure time is at or before the snapshot: time sent by the feed when the train is in the snapshot, otherwise planned time (`stop_times`) + `delay`. The terminus uses its arrival time. Skipped stops are passed. |
+| Delay of a stop | Arrival delay sent by the feed (departure delay at the origin), in seconds. |
+| Train absent from the snapshot | The feed only lists trains with something to report: the last delay known for the stop is kept when it is **above 5 minutes**, otherwise the delay is **0** (assumed caught up). A train never seen gets 0. |
+
+`is_observed` and `delay_raw` keep what the feed sent, so the absence rule can be changed or tested without rebuilding. A prediction target should only use observed values: imputed ones come from this rule, not from the trains.
+
 ## 3. Alert classification
 
 The standard `cause` and `effect` fields of the alerts carry almost no information:

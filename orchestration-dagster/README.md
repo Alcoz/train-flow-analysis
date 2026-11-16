@@ -70,14 +70,16 @@ Order of the jobs, from their dependencies:
 | `theoretical_getter_job` | Bronze GTFS | every day at 10:30 |
 | `trip_update_getter_job` | Bronze trip updates | every 2 minutes |
 | `service_alerts_getter_job` | Bronze alerts | every 5 minutes |
-| `sncf_delay_preparation_job` | Silver GTFS and trip updates, Gold `tag:daily` | 03:00, previous day's partition |
+| `sncf_delay_preparation_job` | Silver GTFS and trip updates, Gold `tag:daily` except `time_series_delay` | 03:00, previous day's partition |
 | `sncf_alerts_preparation_job` | Silver alerts, Gold `dim_alerts` | 03:00, previous day's partition |
 | `sncf_train_alerts_preparation_job` | Gold `fact_train_alerts` | 03:30, previous day's partition |
+| `sncf_time_series_delay_job` | Gold `time_series_delay` (rebuilds `int_planned_trains` in memory) | none, launched by hand on the partitions wanted |
 | `purge_old_runs_job` | deletes getter runs older than 14 days | 04:00 |
 
 - Day D is built on D+1: the Silver trip updates of D also read the snapshots fetched after midnight (overnight trains).
 - `sncf_train_alerts_preparation_job` reads the Gold files of the day written by the two 03:00 jobs: each job runs dbt in its own in-memory DuckDB, so jobs only share Gold files.
 - To rebuild a period, backfill the two 03:00 jobs first, then `sncf_train_alerts_preparation_job` on the same partitions. Backfill runs go one at a time (`dagster.yaml`), so the getters keep running.
+- `sncf_time_series_delay_job` reads the Gold `fact_train_trips` of the day: launch it on partitions already built by `sncf_delay_preparation_job`. Its runs leave the queue after the getters (`dagster/priority` -1) and run one at a time (tag `time_series_delay` in `dagster.yaml`).
 
 ## Sensors
 

@@ -29,12 +29,13 @@ Each step reads what the previous one wrote in the bucket.
 | 1 | Download the feeds (Bronze) | [`sncf_getter.py`](src/data_eng/sncf_getter.py) | SNCF URLs | raw bytes, to store under `data/bronze/` |
 | 2 | Convert to tables (Silver) | [`sncf_transformer.py`](src/data_eng/sncf_transformer.py) | Bronze | Polars dataframes, to store as Parquet under `data/silver/` |
 | 3 | Build Gold, delays | dbt, `tag:daily` | Silver GTFS and trip updates | `dim_dates`, `dim_routes`, `fact_train_trips`, `agg_daily_route` |
+| 3b | Delay time series | dbt, `int_planned_trains time_series_delay` | Silver GTFS and trip updates, Gold `fact_train_trips` of the day | `time_series_delay` |
 | 4 | Build Gold, alert dimension | dbt, `dim_alerts` | Silver alerts, seed `alert_classification_rules` | `dim_alerts` |
 | 5 | Link alerts to trains | dbt, `fact_train_alerts` | Gold `dim_alerts` and `fact_train_trips` of the day | `fact_train_alerts` |
 | 6 | Expose Gold in BigQuery | [`create_gold_external_tables.sql`](bigquery/create_gold_external_tables.sql) | Gold Parquet files | `gold.*` external tables |
 | 7 | Weekly views | [`create_weekly_views.sql`](bigquery/create_weekly_views.sql) | `gold.*` tables | `gold.weekly_*` views |
 
-Steps 3 and 4 are independent: they can run at the same time. Step 5 needs both.
+Steps 3 and 4 are independent: they can run at the same time. Step 5 needs both. Step 3b needs step 3 and has no schedule.
 
 ### 1–2. Python: Bronze and Silver
 
@@ -63,7 +64,8 @@ dbt builds one day, given by the `today` var.
 ```bash
 cd data-eng/dbt_data_pipeline
 uv run dbt deps
-uv run dbt build --select tag:daily --vars '{today: 2026-10-15}'                               # step 3
+uv run dbt build --select tag:daily --exclude time_series_delay --vars '{today: 2026-10-15}'  # step 3
+uv run dbt build --select int_planned_trains time_series_delay --vars '{today: 2026-10-15}'  # step 3b, after 3
 uv run dbt build --select alert_classification_rules dim_alerts --vars '{today: 2026-10-15}'  # step 4
 uv run dbt build --select fact_train_alerts --vars '{today: 2026-10-15}'                       # step 5, after 3 and 4
 ```

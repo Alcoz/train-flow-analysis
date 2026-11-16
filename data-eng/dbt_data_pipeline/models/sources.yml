@@ -26,6 +26,13 @@ sources:
           dagster:
             asset_key: ["sncf_silver_theoretical_data", "calendar_dates"]
 
+      - name: stop_times
+        description: "Planned stops of every trip, for every theoretical GTFS version, with the file name holding the version date."
+        meta:
+          external_location: "read_parquet('s3://sncf-bucket/data/silver/theory/date=*/stop_times.parquet', hive_partitioning = false, filename = true)"
+          dagster:
+            asset_key: ["sncf_silver_theoretical_data", "stop_times"]
+
       - name: routes
         meta:
           external_location: "s3://sncf-bucket/data/silver/theory/date={{ var('today', run_started_at.strftime('%Y-%m-%d')) }}/routes.parquet"

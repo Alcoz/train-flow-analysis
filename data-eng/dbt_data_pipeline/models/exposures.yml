@@ -30,3 +30,15 @@ exposures:
     owner:
       name: Baptiste Darnala
 
+
+  - name: delay_prediction
+    label: Delay prediction
+    type: ml
+    maturity: low
+    description: >
+      Time series models predicting the delay at each stop, in delay_prediction/.
+      They read gold.time_series_delay.
+    depends_on:
+      - ref('time_series_delay')
+    owner:
+      name: Baptiste Darnala

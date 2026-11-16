@@ -12,8 +12,9 @@ Column types below come from that code.
 | [`calendar_dates`](#calendar_dates) | `theory/date=D/calendar_dates.parquet` | day a `service_id` runs | GTFS publication day | `int_planned_trains` |
 | [`routes`](#routes) | `theory/date=D/routes.parquet` | line | GTFS publication day | `dim_routes` |
 | [`stops`](#stops) | `theory/date=D/stops.parquet` | stop area or stop point | GTFS publication day | — |
-| [`stop_times`](#other-gtfs-tables), `transfers`, `feed_info`, `agency` | `theory/date=D/<table>.parquet` | see the GTFS reference | GTFS publication day | — |
-| [`trip_updates`](#trip_updates) | `continue/date=D/<fetch day>_<HH-MM-SS>.parquet` | snapshot × trip × stop | **service date** | `fact_train_trips` |
+| [`stop_times`](#other-gtfs-tables) | `theory/date=D/stop_times.parquet` | planned stop of a trip | GTFS publication day | `time_series_delay` |
+| [`transfers`](#other-gtfs-tables), `feed_info`, `agency` | `theory/date=D/<table>.parquet` | see the GTFS reference | GTFS publication day | — |
+| [`trip_updates`](#trip_updates) | `continue/date=D/<fetch day>_<HH-MM-SS>.parquet` | snapshot × trip × stop | **service date** | `fact_train_trips`, `time_series_delay` |
 | [`alerts`](#alerts) | `alerts/date=D/<HH-MM-SS>.parquet` | snapshot × alert | **fetch day** | `dim_alerts` |
 
 Rules shared by every table:
@@ -74,9 +75,10 @@ Columns depend on what the SNCF publishes: those listed, and the "empty" ones, w
 
 ### Other GTFS tables
 
-Converted but read by no model: `stop_times` (planned times per trip and stop,
-typed `stop_sequence`, `pickup_type`, `drop_off_type`, `shape_dist_traveled`, `timepoint`),
-`transfers` (`transfer_type`, `min_transfer_time`), `feed_info`
+`stop_times` holds the planned times per trip and stop (typed `stop_sequence`, `pickup_type`,
+`drop_off_type`, `shape_dist_traveled`, `timepoint`). Its `arrival_time` and `departure_time`
+are local `HH:MM:SS` strings counted from the service day and can go past `24:00:00`.
+Converted but read by no model: `transfers` (`transfer_type`, `min_transfer_time`), `feed_info`
 (`feed_start_date`, `feed_end_date` as dates, `feed_version`) and `agency`.
 
 ## trip_updates (`continue/`)

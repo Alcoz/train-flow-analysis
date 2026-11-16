@@ -33,8 +33,9 @@ The pipeline follows a **Bronze / Silver / Gold** (medallion) architecture, orch
           ▼
  ┌─────────────────────────────────────────────────────────┐
  │ Gold     data/gold/{dim_routes, fact_train_trips,       │
- │            agg_daily_route, dim_alerts,                 │
- │            fact_train_alerts}/date=…, dim_dates         │
+ │            agg_daily_route, time_series_delay,          │
+ │            dim_alerts, fact_train_alerts}/date=…,       │
+ │            dim_dates                                    │
  └─────────────────────────────────────────────────────────┘
 ```
 
@@ -64,6 +65,7 @@ The dbt project in [`data-eng/dbt_data_pipeline`](data-eng/dbt_data_pipeline) ru
 - `dim_routes` — daily snapshot of routes, with terminal stations parsed from the route name
 - `fact_train_trips` — one row per train of the service date (announced or added in real time), with its status and delay at the effective terminus
 - `agg_daily_route` — daily counts per line, behind the weekly delay and cancellation views
+- `time_series_delay` — delay of each train at its next stop, for every real-time snapshot while it runs, for the delay prediction
 - `dim_alerts` — service alerts of the day, classified by category and reason
 - `fact_train_alerts` — one row per alert and affected train, behind the weekly alert views
 
@@ -79,6 +81,7 @@ Models enforce contracts and are covered by dbt tests (uniqueness, not-null, acc
 | `sncf_delay_preparation_job` | Silver GTFS and GTFS-RT, Gold delay and cancellation models (partitions since 2026-09-14) | Every day at 03:00, previous day's partition |
 | `sncf_alerts_preparation_job` | Silver alerts, `dim_alerts` (partitions since 2026-10-07, start of the alerts collection) | Every day at 03:00, previous day's partition |
 | `sncf_train_alerts_preparation_job` | `fact_train_alerts`, from the Gold files of the two jobs above | Every day at 03:30, previous day's partition |
+| `sncf_time_series_delay_job` | `time_series_delay`, from the Gold `fact_train_trips` of the day (partitions since 2026-09-14) | None, launched by hand, after the getters in the queue |
 
 A job has a single partitions definition, so assets starting on different dates are in different jobs. The DuckDB of each dbt run is in memory: jobs only share Gold files. The dbt project is loaded by two Dagster components (`dbt_ingest` for `tag:daily`, `dbt_alerts` for `tag:alerts`), one per partitions definition.
 
