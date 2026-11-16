@@ -11,6 +11,13 @@
     A stop is passed when its departure time is at or before the snapshot:
     feed time when the train is in the snapshot, otherwise planned time of
     stop_times plus the delay above. The terminus uses its arrival time.
+
+    Memory: a grid of every stop at every snapshot gets the run killed.
+    Stops are only crossed with the snapshots that contain the train. Between
+    two of them the delays do not change, so each stop is the current one
+    over a time interval, and the snapshots are joined on these intervals.
+    DuckDB is also capped and spills to disk (pre_hook), and reset after.
+
     Built by its own job, without schedule, after the delay job:
     fact_train_trips is read from its Gold file of the day (see the
     gold_partition macro), int_planned_trains is rebuilt in the run.
@@ -25,7 +32,18 @@
             "partition_by": "date",
             "overwrite_or_ignore": True
         },
-        tags=["daily"]
+        tags=["daily"],
+        pre_hook=[
+            "SET memory_limit = '" ~ var('time_series_memory_limit', '1GB') ~ "'",
+            "SET threads = 2",
+            "SET preserve_insertion_order = false",
+            "SET temp_directory = '/tmp/duckdb_spill'"
+        ],
+        post_hook=[
+            "RESET memory_limit",
+            "RESET threads",
+            "RESET preserve_insertion_order"
+        ]
     )
 }}
 
@@ -33,6 +51,11 @@
 
 {%- set lookback_versions = 30 %}
 {%- set catchable_delay_seconds = 300 %}
+
+{#- Delay kept for a stop when the train is absent: catchable delays are caught up -#}
+{%- set absent_delay -%}
+    CASE WHEN last_known_delay > {{ catchable_delay_seconds }} THEN last_known_delay ELSE 0 END
+{%- endset %}
 
 -- Announced trains not cancelled: added trains are left out, they have no
 -- planned stops in the GTFS
@@ -47,49 +70,54 @@ WITH trains AS (
     WHERE NOT f.is_cancelled
 ),
 
--- GTFS times are local times counted from midnight of the service day and
--- can go past 24:00:00: converted to naive UTC, as the real-time times
-planned_stop_times AS (
+-- Stops of each train in the last GTFS version announcing it. GTFS times are
+-- local times counted from midnight of the service day and can go past
+-- 24:00:00: converted to naive UTC, as the real-time times
+planned_stops AS (
     SELECT
         trip_id,
         stop_id,
         stop_sequence,
-        {{ gtfs_version() }} AS gtfs_version,
-        split_part(arrival_time, ':', 1)::INT * 3600
-            + split_part(arrival_time, ':', 2)::INT * 60
-            + split_part(arrival_time, ':', 3)::INT AS arrival_seconds,
-        split_part(departure_time, ':', 1)::INT * 3600
-            + split_part(departure_time, ':', 2)::INT * 60
-            + split_part(departure_time, ':', 3)::INT AS departure_seconds
-    FROM {{ source("silver", "stop_times") }}
-    -- Filtering on the file name only reads the files of these versions
-    WHERE {{ gtfs_version() }}
-        BETWEEN {{ run_date() }} - {{ lookback_versions - 1 }} AND {{ run_date() }}
-),
-
--- Stops of each train in the last GTFS version announcing it
-planned_stops AS (
-    SELECT
-        t.trip_id,
-        st.stop_id,
-        st.stop_sequence,
-        timezone('UTC', timezone(
-            'Europe/Paris', {{ run_date() }} + to_seconds(st.arrival_seconds)
-        )) AS planned_arrival,
-        timezone('UTC', timezone(
-            'Europe/Paris', {{ run_date() }} + to_seconds(st.departure_seconds)
-        )) AS planned_departure,
-        st.stop_sequence = max(st.stop_sequence) OVER (PARTITION BY t.trip_id) AS is_terminus
-    FROM planned_stop_times AS st
-    INNER JOIN trains AS t
-        ON st.trip_id = t.trip_id
-        AND st.gtfs_version = t.last_gtfs_version
+        planned_arrival,
+        coalesce(planned_departure, planned_arrival) AS planned_departure,
+        stop_sequence = max(stop_sequence) OVER (PARTITION BY trip_id) AS is_terminus
+    FROM (
+        SELECT
+            t.trip_id,
+            st.stop_id,
+            st.stop_sequence,
+            timezone('UTC', timezone('Europe/Paris', {{ run_date() }} + to_seconds(
+                split_part(st.arrival_time, ':', 1)::INT * 3600
+                + split_part(st.arrival_time, ':', 2)::INT * 60
+                + split_part(st.arrival_time, ':', 3)::INT
+            ))) AS planned_arrival,
+            timezone('UTC', timezone('Europe/Paris', {{ run_date() }} + to_seconds(
+                split_part(st.departure_time, ':', 1)::INT * 3600
+                + split_part(st.departure_time, ':', 2)::INT * 60
+                + split_part(st.departure_time, ':', 3)::INT
+            ))) AS planned_departure
+        FROM {{ source("silver", "stop_times") }} AS st
+        INNER JOIN trains AS t
+            ON st.trip_id = t.trip_id
+            AND {{ gtfs_version("st.filename") }} = t.last_gtfs_version
+        -- Filtering on the file name only reads the files of these versions
+        WHERE {{ gtfs_version("st.filename") }}
+            BETWEEN {{ run_date() }} - {{ lookback_versions - 1 }} AND {{ run_date() }}
+    )
 ),
 
 feed AS (
     SELECT
-        *,
-        NULLIF(regexp_extract(trip_id, '^[A-Z]+[0-9]+[A-Z]'), '') AS feed_train_number
+        trip_id,
+        NULLIF(regexp_extract(trip_id, '^[A-Z]+[0-9]+[A-Z]'), '') AS feed_train_number,
+        stop_id,
+        stop_position,
+        stop_schedule_relationship,
+        arrival_delay,
+        departure_delay,
+        arrival_time,
+        departure_time,
+        fetched_at
     FROM {{ source("silver", "trip_updates") }}
     WHERE start_date = {{ run_date() }}
 ),
@@ -100,7 +128,8 @@ feed AS (
 id_map AS (
     SELECT
         f.trip_id AS feed_trip_id,
-        t.trip_id
+        t.trip_id,
+        f.trip_id = t.trip_id AS is_full_id
     FROM (SELECT DISTINCT trip_id, feed_train_number FROM feed) AS f
     INNER JOIN trains AS t
         ON f.trip_id = t.trip_id
@@ -114,23 +143,34 @@ feed_stops AS (
         m.trip_id,
         u.fetched_at,
         u.stop_id,
-        u.stop_schedule_relationship,
-        -- Delay at the stop: arrival, departure at the origin (no arrival)
-        coalesce(u.arrival_delay, u.departure_delay) AS delay_raw,
-        coalesce(u.departure_time, u.arrival_time) AS feed_departure,
-        coalesce(u.arrival_time, u.departure_time) AS feed_arrival
+        arg_min(
+            {
+                -- Delay at the stop: arrival, departure at the origin (no arrival)
+                'delay_raw': coalesce(u.arrival_delay, u.departure_delay),
+                'feed_departure': coalesce(u.departure_time, u.arrival_time),
+                'feed_arrival': coalesce(u.arrival_time, u.departure_time),
+                'relationship': u.stop_schedule_relationship
+            },
+            (NOT m.is_full_id)::INT * 1000 + u.stop_position
+        ) AS sent
     FROM feed AS u
     INNER JOIN id_map AS m
         ON u.trip_id = m.feed_trip_id
-    QUALIFY row_number() OVER (
-        PARTITION BY m.trip_id, u.fetched_at, u.stop_id
-        ORDER BY (u.trip_id = m.trip_id) DESC, u.stop_position
-    ) = 1
+    GROUP BY m.trip_id, u.fetched_at, u.stop_id
 ),
 
 snapshots AS (
     SELECT DISTINCT fetched_at
     FROM feed
+),
+
+-- Snapshots that contain the train, with the next one
+observations AS (
+    SELECT
+        trip_id,
+        fetched_at,
+        lead(fetched_at) OVER (PARTITION BY trip_id ORDER BY fetched_at) AS next_fetched_at
+    FROM (SELECT DISTINCT trip_id, fetched_at FROM feed_stops)
 ),
 
 -- Running window: from the planned departure at the origin to the latest
@@ -139,7 +179,8 @@ windows AS (
     SELECT
         p.trip_id,
         p.window_start,
-        greatest(p.planned_end, coalesce(f.feed_end, p.planned_end)) AS window_end
+        greatest(p.planned_end, coalesce(f.feed_end, p.planned_end)) AS window_end,
+        f.first_fetched_at
     FROM (
         SELECT
             trip_id,
@@ -151,97 +192,178 @@ windows AS (
     LEFT JOIN (
         SELECT
             trip_id,
-            max(feed_arrival) AS feed_end
+            max(sent.feed_arrival) AS feed_end,
+            min(fetched_at) AS first_fetched_at
         FROM feed_stops
         GROUP BY trip_id
     ) AS f
         ON p.trip_id = f.trip_id
 ),
 
-train_snapshots AS (
+-- Every planned stop at every snapshot that contains the train, with the
+-- last delay and status sent for the stop up to that snapshot
+observed_stops AS (
     SELECT
-        w.trip_id,
-        s.fetched_at,
-        o.trip_id IS NOT NULL AS is_observed
-    FROM windows AS w
-    INNER JOIN snapshots AS s
-        ON s.fetched_at BETWEEN w.window_start AND w.window_end
-    LEFT JOIN (SELECT DISTINCT trip_id, fetched_at FROM feed_stops) AS o
-        ON w.trip_id = o.trip_id
-        AND s.fetched_at = o.fetched_at
-),
-
--- Every stop of the train at every snapshot of its running window
-stop_grid AS (
-    SELECT
-        ts.trip_id,
-        ts.fetched_at,
-        ts.is_observed,
+        o.trip_id,
+        o.fetched_at,
+        o.next_fetched_at,
         ps.stop_id,
         ps.stop_sequence,
         ps.is_terminus,
         ps.planned_arrival,
-        coalesce(ps.planned_departure, ps.planned_arrival) AS planned_departure,
-        fs.delay_raw,
-        fs.feed_departure,
-        fs.feed_arrival,
-        -- Last delay and status sent for this stop, up to this snapshot
-        last_value(fs.delay_raw IGNORE NULLS) OVER stop_history AS last_known_delay,
-        last_value(fs.stop_schedule_relationship IGNORE NULLS) OVER stop_history
-            AS last_known_relationship
-    FROM train_snapshots AS ts
+        ps.planned_departure,
+        fs.sent.delay_raw,
+        fs.sent.feed_departure,
+        fs.sent.feed_arrival,
+        last_value(fs.sent.delay_raw IGNORE NULLS) OVER stop_history AS last_known_delay,
+        last_value(fs.sent.relationship IGNORE NULLS) OVER stop_history AS last_known_relationship
+    FROM observations AS o
     INNER JOIN planned_stops AS ps
-        ON ts.trip_id = ps.trip_id
+        ON o.trip_id = ps.trip_id
     LEFT JOIN feed_stops AS fs
-        ON ts.trip_id = fs.trip_id
-        AND ts.fetched_at = fs.fetched_at
+        ON o.trip_id = fs.trip_id
+        AND o.fetched_at = fs.fetched_at
         AND ps.stop_id = fs.stop_id
     WINDOW stop_history AS (
-        PARTITION BY ts.trip_id, ps.stop_sequence
-        ORDER BY ts.fetched_at
+        PARTITION BY o.trip_id, ps.stop_sequence
+        ORDER BY o.fetched_at
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
     )
 ),
 
-delays AS (
+-- Delay and passing time of every stop in each state of the train, and the
+-- times the state holds for. Snapshot times are exact, so bounds are
+-- strict except the observed snapshot itself (state_start = state_end).
+states AS (
+    -- In the snapshot: what the feed sent
     SELECT
-        *,
-        coalesce(
-            delay_raw,
-            -- Not sent: catchable delays are assumed caught up
-            CASE
-                WHEN last_known_delay > {{ catchable_delay_seconds }} THEN last_known_delay
-                ELSE 0
-            END
-        ) AS delay
-    FROM stop_grid
+        trip_id,
+        stop_id,
+        stop_sequence,
+        true AS is_observed,
+        fetched_at AS state_start,
+        fetched_at AS state_end,
+        delay_raw,
+        delay,
+        CASE
+            WHEN last_known_relationship = 'SKIPPED' THEN '-infinity'::TIMESTAMP
+            WHEN is_terminus THEN coalesce(feed_arrival, planned_arrival + to_seconds(delay))
+            ELSE coalesce(feed_departure, planned_departure + to_seconds(delay))
+        END AS passing_time
+    FROM (
+        SELECT
+            *,
+            coalesce(delay_raw, {{ absent_delay }}) AS delay
+        FROM observed_stops
+    )
+
+    UNION ALL
+
+    -- After the snapshot, until the next one with the train: absent
+    SELECT
+        trip_id,
+        stop_id,
+        stop_sequence,
+        false AS is_observed,
+        fetched_at AS state_start,
+        coalesce(next_fetched_at, 'infinity'::TIMESTAMP) AS state_end,
+        NULL AS delay_raw,
+        delay,
+        CASE
+            WHEN last_known_relationship = 'SKIPPED' THEN '-infinity'::TIMESTAMP
+            WHEN is_terminus THEN planned_arrival + to_seconds(delay)
+            ELSE planned_departure + to_seconds(delay)
+        END AS passing_time
+    FROM (
+        SELECT
+            *,
+            {{ absent_delay }} AS delay
+        FROM observed_stops
+    )
+
+    UNION ALL
+
+    -- Before the first snapshot with the train, or never seen: planned times
+    SELECT
+        ps.trip_id,
+        ps.stop_id,
+        ps.stop_sequence,
+        false AS is_observed,
+        '-infinity'::TIMESTAMP AS state_start,
+        coalesce(w.first_fetched_at, 'infinity'::TIMESTAMP) AS state_end,
+        NULL AS delay_raw,
+        0 AS delay,
+        CASE WHEN ps.is_terminus THEN ps.planned_arrival ELSE ps.planned_departure END
+            AS passing_time
+    FROM planned_stops AS ps
+    INNER JOIN windows AS w
+        ON ps.trip_id = w.trip_id
 ),
 
-passing AS (
+-- A stop is the current one from the time all earlier stops are passed
+-- until it is passed itself: [current_from, passing_time)
+intervals AS (
+    SELECT
+        s.*,
+        w.window_start,
+        w.window_end,
+        coalesce(
+            max(s.passing_time) OVER (
+                PARTITION BY s.trip_id, s.is_observed, s.state_start
+                ORDER BY s.stop_sequence
+                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+            ),
+            '-infinity'::TIMESTAMP
+        ) AS current_from
+    FROM states AS s
+    INNER JOIN windows AS w
+        ON s.trip_id = w.trip_id
+),
+
+-- Only the intervals that can hold a snapshot of the running window
+useful_intervals AS (
     SELECT
         *,
-        coalesce(last_known_relationship = 'SKIPPED', false)
-            OR CASE
-                WHEN is_terminus
-                    THEN coalesce(feed_arrival, planned_arrival + to_seconds(delay))
-                ELSE coalesce(feed_departure, planned_departure + to_seconds(delay))
-            END <= fetched_at AS is_passed
-    FROM delays
+        greatest(current_from, window_start) AS range_from,
+        least(passing_time, state_end) AS range_to
+    FROM intervals
+    WHERE current_from < passing_time
+        AND (
+            (is_observed AND state_start >= current_from AND state_start < passing_time
+                AND state_start BETWEEN window_start AND window_end)
+            OR (NOT is_observed AND greatest(current_from, window_start) < least(passing_time, state_end)
+                AND least(passing_time, state_end) > state_start)
+        )
 )
 
 -- Next stop not passed; a train with every stop passed has arrived: no row
 SELECT
     {{ run_date() }} AS date,
     trip_id,
-    fetched_at,
+    state_start AS fetched_at,
     stop_id,
     stop_sequence,
     is_observed,
-    delay_raw,
-    delay
-FROM passing
-WHERE NOT is_passed
-QUALIFY row_number() OVER (
-    PARTITION BY trip_id, fetched_at
-    ORDER BY stop_sequence
-) = 1
+    delay_raw::BIGINT AS delay_raw,
+    delay::BIGINT AS delay
+FROM useful_intervals
+WHERE is_observed
+
+UNION ALL
+
+SELECT
+    {{ run_date() }} AS date,
+    i.trip_id,
+    s.fetched_at,
+    i.stop_id,
+    i.stop_sequence,
+    i.is_observed,
+    i.delay_raw::BIGINT AS delay_raw,
+    i.delay::BIGINT AS delay
+FROM useful_intervals AS i
+INNER JOIN snapshots AS s
+    ON s.fetched_at >= i.range_from
+    AND s.fetched_at < i.range_to
+WHERE NOT i.is_observed
+    AND s.fetched_at > i.state_start
+    AND s.fetched_at <= i.window_end
