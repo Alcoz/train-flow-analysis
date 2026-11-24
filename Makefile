@@ -30,3 +30,6 @@ docker-up:
 
 dagster-postgres:
 	docker run --name dagster-postgres -p 5432:5432 -e POSTGRES_USER=${DAGSTER_POSTGRES_USER} -e POSTGRES_PASSWORD=${DAGSTER_POSTGRES_PASSWORD} -e POSTGRES_DB=${DAGSTER_POSTGRES_DB} -d postgres
+
+train-baseline:
+	uv run --env-file .env.google python -m delay_prediction.baseline

@@ -9,7 +9,7 @@ from datetime import date, timedelta
 import dagster as dg
 import polars as pl
 import pytest
-from delay_prediction.datasets import FEATURE_COLUMNS, list_versions
+from delay_prediction.datasets import FEATURE_COLUMNS, latest_version
 from moto import mock_aws
 from orchestration_dagster.defs.assets.ml_dataset_assets import ml_training_dataset
 from orchestration_dagster.defs.resources import S3_Resource
@@ -28,7 +28,10 @@ def put_parquet(client, key: str, frame: pl.DataFrame) -> None:
 @pytest.fixture
 def s3_resource(monkeypatch):
     """Provide an S3 resource on a mocked bucket with 6 days of features and trains."""
-    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+    monkeypatch.setattr(
+        "orchestration_dagster.defs.assets.ml_dataset_assets.log_dataset_to_mlflow",
+        lambda *args: "run-1",
+    )
     with mock_aws():
         resource = S3_Resource(
             s3_api="https://s3.eu-west-1.amazonaws.com",
@@ -77,14 +80,16 @@ def test_materialization_writes_a_version(s3_resource):
         [ml_training_dataset],
         resources={"s3_resource": s3_resource},
         run_config={
-            "ops": {"ml_training_dataset": {"config": {"valid_days": 2}}},
+            "ops": {
+                "ml_training_dataset": {"config": {"valid_days": 2, "test_days": 1}}
+            },
         },
     )
 
     assert result.success
     metadata = result.asset_materializations_for_node("ml_training_dataset")[0].metadata
-    versions = list_versions(s3_resource.get_client(), BUCKET)
-    assert versions == [metadata["version"].value]
-    assert metadata["train_rows"].value == 4
+    assert metadata["version"].value == latest_version(s3_resource.get_client(), BUCKET)
+    assert metadata["train_rows"].value == 3
     assert metadata["valid_rows"].value == 2
-    assert metadata["mlflow_run_id"].value.startswith("not logged")
+    assert metadata["test_rows"].value == 1
+    assert metadata["mlflow_run_id"].value == "run-1"

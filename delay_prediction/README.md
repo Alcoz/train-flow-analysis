@@ -1,61 +1,39 @@
 # delay_prediction
 
-Predicts whether an SNCF train will reach its terminus **5 minutes late or more**, the day before it runs. Features come from the Gold table `ml_delay_features` (one row per train of day D, known before D starts), the target from `fact_train_trips` of day D. Rules: [`data-eng/docs/business_rules.md`](../data-eng/docs/business_rules.md).
+Predicts the day before whether an SNCF train will reach its terminus **5 minutes late or more**. Features come from the Gold table `ml_delay_features` (known before day D), the target from `fact_train_trips` of day D. Rules: [`data-eng/docs/business_rules.md`](../data-eng/docs/business_rules.md).
 
 ## Training datasets
 
-A dataset version is a frozen copy of the labelled features, built by the Dagster job `sncf_ml_training_dataset_job` (asset `ml_training_dataset`, launched by hand) with [`datasets.py`](src/delay_prediction/datasets.py):
+The Dagster job `sncf_ml_training_dataset_job` (launched by hand) writes a new version with [`datasets.py`](src/delay_prediction/datasets.py):
 
-| Rule | Value |
-| --- | --- |
-| Rows | Days from `first_date` (default 2026-10-13, the first day with 28 days of history) that have both their features and their trains. The current day has no target yet and is left out. |
-| Target | `is_late`: `terminus_arrival_delay >= 300` seconds. Only trains seen running, not cancelled and with a measured delay are kept: the others have no observed answer (`dropped_rows` in the manifest). |
-| Matching | On `(date, trip_id)`. The features take the trip_id of the GTFS version of D-1, `fact_train_trips` the one of the last version announcing the train: when the SNCF changed it in between (about 2% of the rows), the train is matched by its number, if no other train of D holds it. |
-| Split | By date: the last `valid_days` days (default 14) are the validation set, the days before the training set. |
-| Storage | `data/ml/datasets/<version>/` on the bucket: `train.parquet`, `valid.parquet`, `manifest.json` (written last: a version without a manifest is incomplete and ignored). |
-| Version | `YYYY-MM-DD_HHMMSS_<digest>`: UTC build time, then the start of the SHA-256 digest of the data. `latest` is the last one. |
-| MLflow | Each version is logged as a run tagged `purpose=training_dataset`, with its dates, row counts, late rates and both sets as inputs. Only metadata goes to MLflow: the data stays on the bucket. Skipped when `MLFLOW_TRACKING_URI` is not set. |
-
-Load a version, in Dagster or locally:
+- **Rows**: days from `first_date` (default 2026-10-13, the first with 28 days of history) that have their trains. Only trains seen running, not cancelled and with a measured delay are kept. When the SNCF changed a trip_id between two GTFS versions, the train is matched by its number.
+- **Split**: the last `test_days` days (default 7) are the test set, the `valid_days` days before (default 14) the validation set, the days before the training set. The test set is kept aside for the final measure of the chosen model.
+- **Storage**: `data/ml/datasets/<version>/train.parquet`, `valid.parquet` and `test.parquet` on the bucket; the version is the UTC build time.
+- **MLflow**: a run tagged `purpose=training_dataset`, with the date ranges and the three sets as inputs (schema, size, digest). The data stays on the bucket.
 
 ```python
 from delay_prediction.datasets import load_dataset
 
-train, valid, manifest = load_dataset("latest", cache_dir="data/ml/datasets")
+splits, version = load_dataset()  # latest version: splits["train"], ["valid"], ["test"]
 ```
-
-List the versions on the bucket, or log one to MLflow (e.g. a version written while MLflow was not configured in the orchestrator):
-
-```bash
-uv run --env-file <env file> python -m delay_prediction.datasets list
-uv run --env-file <env file> python -m delay_prediction.datasets log <version>
-```
-
-Without a client, `load_dataset` reads the bucket with the `S3_*` and `BUCKET_NAME` variables (locally: `uv run --env-file <env file> python ...`). With `cache_dir`, a version is copied there on its first read and read from there afterwards; `data/` is ignored by git.
 
 ## Baselines
 
-[`baseline.py`](src/delay_prediction/baseline.py) scores the rules a trained model must beat, on a dataset version:
+[`baseline.py`](src/delay_prediction/baseline.py) gives the scores a trained model must beat:
 
-| Baseline | Probability of being late |
-| --- | --- |
-| `history` | Late rate of the train over the 28 days before D (`train_late_rate_28d`); without history, late rate of its line (`route_late_rate_28d`); without either, late rate of the training set. |
-| `constant` | Late rate of the training set, for every train: what a model knowing nothing of the features would do. |
+- `history`: a train is predicted late when it was late more often over the last 7 days than over the last 28 days (`train_late_rate_7d > train_late_rate_28d`). A train without history is predicted on time.
+- `all_late`: every train is predicted late, the score without any information on the trains.
 
-Every model is compared on the same metrics of the validation set ([`metrics.py`](src/delay_prediction/metrics.py)): `pr_auc` (average precision, the main one: late trains are about 1 in 4), `roc_auc` (0.5 is random), `brier` (quality of the probabilities, lower is better), and `precision` / `recall` at the threshold maximizing F1 on the training set.
+Metrics on the validation set ([`metrics.py`](src/delay_prediction/metrics.py)): `precision`, `recall`, `f1`. Each baseline is a MLflow run tagged `purpose=baseline`.
 
 ```bash
-uv run --env-file <env file> python -m delay_prediction.baseline --dataset latest
+make train-baseline
 ```
-
-Each baseline is logged as a MLflow run tagged `purpose=baseline`, with the dataset version and its inputs; `--no-mlflow` only prints the metrics. The dataset is cached under `data/ml/datasets/` (`--cache-dir`).
 
 ## MLflow
 
-Tracking and registry are on Databricks (variables in `.env.example`). Check the connection:
+Tracking and registry are on Databricks (variables in `.env.example`, passed to the orchestrator by docker-compose). Check the connection:
 
 ```bash
 uv run --env-file .env python -m delay_prediction.check_tracking
 ```
-
-In Docker, the orchestrator receives the same variables from docker-compose.

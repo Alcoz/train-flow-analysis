@@ -1,142 +1,68 @@
-"""Baselines of the delay prediction: the rules a trained model must beat.
+"""Baselines of the delay prediction: the scores a trained model must beat.
 
-- ``history``: the late rate of the train over the 28 days before D; the
-  late rate of its line when the train has no history; the late rate of the
-  training set when the line has none either.
-- ``constant``: the late rate of the training set for every train. A model
-  that does not beat it has learnt nothing from the features.
+- history: a train is predicted late when it was late more often over the
+  last 7 days than over the last 28 days. A train without history is
+  predicted on time.
+- all_late: every train is predicted late (DummyClassifier), the score
+  obtained without any information on the trains.
 
-Nothing is fitted but the fallback rate and the threshold, both on the
-training set. Each baseline is logged as its own MLflow run, tagged
-``purpose=baseline``, so that it sits next to the trained models:
+Each baseline is logged as a MLflow run tagged purpose=baseline:
 
-    uv run --env-file <env file> python -m delay_prediction.baseline --dataset latest
+    make train-baseline
 """
 
-import argparse
 import os
 
-import numpy as np
+import mlflow
 import polars as pl
+from sklearn.dummy import DummyClassifier
 
-from delay_prediction.datasets import DATASETS_PREFIX, TARGET, load_dataset
-from delay_prediction.metrics import choose_threshold, evaluate
-
-BASELINES = ("history", "constant")
-
-
-def predict(name: str, frame: pl.DataFrame, train_late_rate: float) -> np.ndarray:
-    """Return the probability of being late of each row for a baseline."""
-    if name == "history":
-        proba = frame.select(
-            pl.coalesce(
-                "train_late_rate_28d",
-                "route_late_rate_28d",
-                pl.lit(train_late_rate),
-            )
-        ).to_series()
-        return proba.to_numpy().astype(float)
-    if name == "constant":
-        return np.full(frame.height, train_late_rate)
-    raise ValueError(f"Unknown baseline: {name}")
+from delay_prediction.datasets import TARGET, load_dataset, log_dataset_inputs
+from delay_prediction.metrics import classification_metrics
 
 
-def evaluate_baseline(name: str, train: pl.DataFrame, valid: pl.DataFrame) -> dict:
-    """Fit the fallback rate and threshold on train, return train and valid metrics."""
-    train_late_rate = float(train[TARGET].mean())
-    y_train = train[TARGET].to_numpy()
-    y_valid = valid[TARGET].to_numpy()
-    train_proba = predict(name, train, train_late_rate)
-    # A constant has a single threshold: every train is flagged or none
-    threshold = (
-        train_late_rate
-        if name == "constant"
-        else choose_threshold(y_train, train_proba)
-    )
-    return {
-        "threshold": threshold,
-        "train": evaluate(y_train, train_proba, threshold),
-        "valid": evaluate(y_valid, predict(name, valid, train_late_rate), threshold),
-    }
+def evaluate_history(valid: pl.DataFrame):
+    """Return the metrics on valid of the history rule."""
+    predicted_late = (
+        valid["train_late_rate_7d"] > valid["train_late_rate_28d"]
+    ).fill_null(False)
+    return classification_metrics(valid[TARGET], predicted_late)
 
 
-def log_baseline_to_mlflow(
-    name: str,
-    result: dict,
-    train: pl.DataFrame,
-    valid: pl.DataFrame,
-    manifest: dict,
-) -> str:
-    """Log a baseline as a MLflow run and return its id."""
-    import mlflow
+def evaluate_all_late(train: pl.DataFrame, valid: pl.DataFrame):
+    """Return the metrics on valid when every train is predicted late."""
+    model = DummyClassifier(strategy="constant", constant=True)
+    model.fit(train.select("date"), train[TARGET])
+    return classification_metrics(valid[TARGET], model.predict(valid.select("date")))
 
-    version = manifest["version"]
-    source = (
-        f"s3://{os.environ.get('BUCKET_NAME', '<bucket>')}/{DATASETS_PREFIX}/{version}"
-    )
-    mlflow.set_experiment(os.environ["MLFLOW_EXPERIMENT_NAME"])
-    with mlflow.start_run(run_name=f"baseline_{name}") as run:
-        mlflow.set_tags(
-            {
-                "purpose": "baseline",
-                "model_type": name,
-                "dataset_version": version,
-            }
-        )
-        mlflow.log_params(
-            {
-                "baseline": name,
-                "dataset_version": version,
-                "dataset_digest": manifest["digest"],
-                "threshold": round(result["threshold"], 4),
-            }
-        )
-        for split in ("train", "valid"):
-            mlflow.log_metrics(
-                {f"{split}_{key}": value for key, value in result[split].items()}
-            )
-        # Same frames as the dataset run: MLflow gives them the same digest
-        for split, frame in (("train", train), ("valid", valid)):
-            dataset = mlflow.data.from_polars(
-                frame,
-                source=f"{source}/{split}.parquet",
-                targets=TARGET,
-                name=f"{version}_{split}",
-            )
-            mlflow.log_input(dataset, context=split)
-    return run.info.run_id
+
+def log_baseline(name: str, metrics: dict, splits: dict, version: str):
+    """Log a baseline as a MLflow run."""
+    with mlflow.start_run(run_name=f"baseline_{name}"):
+        mlflow.set_tags({"purpose": "baseline", "dataset_version": version})
+        mlflow.log_metrics(metrics)
+        log_dataset_inputs(splits, version, os.environ["BUCKET_NAME"])
 
 
 def main() -> None:
-    """Evaluate the baselines on a dataset version and log them to MLflow."""
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--dataset", default="latest", help="Dataset version")
-    parser.add_argument(
-        "--cache-dir",
-        default="data/ml/datasets",
-        help="Local copy of the dataset versions",
-    )
-    parser.add_argument(
-        "--no-mlflow", action="store_true", help="Only print the metrics"
-    )
-    args = parser.parse_args()
+    """Evaluate the baselines on the latest dataset and log them to MLflow."""
+    splits, version = load_dataset()
+    mlflow.set_experiment(os.environ["MLFLOW_EXPERIMENT_NAME"])
 
-    train, valid, manifest = load_dataset(args.dataset, cache_dir=args.cache_dir)
-    print(f"Dataset {manifest['version']}: {train.height} train, {valid.height} valid")
-    rows = []
-    for name in BASELINES:
-        result = evaluate_baseline(name, train, valid)
-        run_id = None
-        if not args.no_mlflow:
-            run_id = log_baseline_to_mlflow(name, result, train, valid, manifest)
-        rows.append(
-            {"baseline": name, "threshold": round(result["threshold"], 3)}
-            | {key: round(value, 3) for key, value in result["valid"].items()}
-            | {"mlflow_run_id": run_id}
+    history_metrics = evaluate_history(splits["valid"])
+    log_baseline("history", history_metrics, splits, version)
+    all_late_metrics = evaluate_all_late(splits["train"], splits["valid"])
+    log_baseline("all_late", all_late_metrics, splits, version)
+
+    print(f"Dataset {version}, validation metrics:")
+    print(
+        pl.DataFrame(
+            [
+                {"baseline": "history"} | history_metrics,
+                {"baseline": "all_late"} | all_late_metrics,
+            ]
         )
-    with pl.Config(tbl_cols=-1, tbl_width_chars=200):
-        print("Validation metrics:")
-        print(pl.DataFrame(rows))
+    )
 
 
 if __name__ == "__main__":
