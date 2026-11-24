@@ -76,17 +76,27 @@ The two groups are clearly apart, so any cutoff between D-3 and D-13 gives the s
 
 ### Delay time series
 
-[`time_series_delay`](../dbt_data_pipeline/models/warehouse/time_series_delay.sql) holds the delay of each train over time, for the delay prediction: one row per train and real-time snapshot (every 2 minutes) while the train runs. 🟡
+[`time_series_delay`](../dbt_data_pipeline/models/warehouse/time_series_delay.sql) holds the delay of each train over time, for the delay prediction: one row per train and real-time snapshot (every 2 minutes) within its planned running window. 🟡
 
 | Rule | Value |
 | --- | --- |
-| Trains | Announced trains not cancelled (`fact_train_trips.is_cancelled = false`). Trains added in real time are left out: they have no planned stops. |
-| Running window | From the planned departure at the origin to the latest arrival at the terminus, planned or sent by the feed. |
-| Stop of a row | The next stop the train has not left yet. A stop is left when its departure time is at or before the snapshot: time sent by the feed when the train is in the snapshot, otherwise planned time (`stop_times`) + `delay`. The terminus uses its arrival time. Skipped stops are passed. |
-| Delay of a stop | Arrival delay sent by the feed (departure delay at the origin), in seconds. |
-| Train absent from the snapshot | The feed only lists trains with something to report: the last delay known for the stop is kept when it is **above 5 minutes**, otherwise the delay is **0** (assumed caught up). A train never seen gets 0. |
+| Trains | Announced trains not cancelled (`fact_train_trips.is_cancelled = false`). Trains added in real time are left out: they have no planned times. |
+| Running window | From the first planned departure to the last planned arrival of the train (`stop_times`). |
+| Delay | Forecast arrival delay at the effective terminus (last stop not skipped) in the snapshot, in seconds, as in `fact_train_trips`. |
+| Train absent from the snapshot, or sent without a delay | 0, with `is_observed = false` when absent. Whether absent trains are really on time is still to be checked. |
 
-`is_observed` and `delay_raw` keep what the feed sent, so the absence rule can be changed or tested without rebuilding. A prediction target should only use observed values: imputed ones come from this rule, not from the trains.
+### Delay prediction features
+
+[`ml_delay_features`](../dbt_data_pipeline/models/warehouse/ml_delay_features.sql) holds, for each train of day D, what is known **before D starts**: one row per train, used both to train the model and to predict the day. 🟡
+
+| Rule | Value |
+| --- | --- |
+| Trains | Trains of D in the **latest GTFS version published before D** (looked up over 7 versions), the one available on the morning of D. Trains added in real time are left out. |
+| Inputs | Strictly before D: planned times from that version, histories from `fact_train_trips` of D-28 to D-1, alerts from `fact_train_alerts` of D-1. Nothing of D, so the model cannot learn from information it would not have when predicting. |
+| Delay of a past day | Delay at the effective terminus of a train seen running and not cancelled, early arrivals as 0. Trains not seen in the feed have no delay: they count in no rate. |
+| Late | Delay at the terminus of **5 minutes or more**. |
+| Missing history | Rates and means are null when the train or line has no measured delay in the window (e.g. a new train). Alert counts are null when no alert is stored for D-1 (before 2026-10-07). |
+| Target | Not stored: joined from `fact_train_trips` of D when building the training set, so the partition of D can be built before D. |
 
 ## 3. Alert classification
 

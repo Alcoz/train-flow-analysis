@@ -206,7 +206,7 @@ models:
         data_tests: [not_null]
 
   - name: time_series_delay
-    description: "One row per announced train not cancelled and real-time snapshot while it runs, at its next stop not passed yet. Snapshots without the train get a row too: delay 0, or the last delay known for the stop when it was above 5 minutes."
+    description: "One row per announced train not cancelled and real-time snapshot within its planned running window, with the forecast arrival delay at its effective terminus; 0 when the train is absent from the snapshot or sent without a delay."
     config:
       meta:
         purpose: "Delay time series for the delay prediction (delay_prediction/)."
@@ -233,25 +233,105 @@ models:
         description: "Time of the real-time snapshot (UTC)."
         data_type: timestamp
         data_tests: [not_null]
-      - name: stop_id
-        description: "Next stop the train has not left yet (arrived for the terminus)."
-        data_type: varchar
-        data_tests: [not_null]
-      - name: stop_sequence
-        description: "Planned order of the stop in stop_times."
-        data_type: bigint
-        data_tests: [not_null]
       - name: is_observed
         description: "The train is in this snapshot of the real-time feed."
         data_type: boolean
         data_tests: [not_null]
-      - name: delay_raw
-        description: "Arrival delay sent for the stop in this snapshot (departure at the origin), in seconds; null when not sent."
-        data_type: bigint
       - name: delay
-        description: "delay_raw when sent, otherwise the last delay known for the stop when above 5 minutes, otherwise 0. In seconds, negative when early."
+        description: "Forecast arrival delay at the effective terminus (last stop not skipped) in seconds, negative when early; 0 when the train is absent or sent without a delay."
         data_type: bigint
         data_tests: [not_null]
+
+  - name: ml_delay_features
+    description: "Features of the delay prediction: one row per train announced for D in the latest GTFS version published before D, with histories and alerts up to D-1 only. No target: it is joined from fact_train_trips of D when training."
+    config:
+      meta:
+        purpose: "Training set and daily prediction input of the delay prediction (delay_prediction/)."
+        status: active
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        columns: [trip_id, date]
+        warn_unsupported: false
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [trip_id, date]
+    columns:
+      - name: date
+        description: "Day the features are for (day D of the train)."
+        data_type: date
+        data_tests: [not_null]
+      - name: trip_id
+        description: "GTFS trip_id of the train in the GTFS version used."
+        data_type: varchar
+        data_tests: [not_null]
+      - name: train_number
+        description: "Identifier used by alerts and to follow a train across days ('OCESN862402F')."
+        data_type: varchar
+      - name: route_id
+        description: "Line of the train in the GTFS version used."
+        data_type: varchar
+      - name: gtfs_version
+        description: "Latest GTFS version published before D announcing trains for D."
+        data_type: date
+        data_tests: [not_null]
+      - name: day_of_week
+        description: "ISO day of week of D, 1 = Monday."
+        data_type: integer
+        data_tests: [not_null]
+      - name: departure_hour
+        description: "Hour of the planned first departure (local time, 0 to 23)."
+        data_type: integer
+      - name: planned_duration_minutes
+        description: "Planned time from the first departure to the last arrival."
+        data_type: integer
+      - name: planned_stops
+        description: "Number of planned stops."
+        data_type: integer
+      - name: train_runs_28d
+        description: "Days of the 28 before D with a measured delay for this train number."
+        data_type: integer
+        data_tests: [not_null]
+      - name: train_late_rate_28d
+        description: "Share of these days with a delay at the terminus of 5 minutes or more; null without history."
+        data_type: double
+      - name: train_late_rate_7d
+        description: "Same share over the 7 days before D."
+        data_type: double
+      - name: train_mean_delay_28d
+        description: "Mean delay at the terminus over the 28 days before D, in minutes, early arrivals as 0."
+        data_type: double
+      - name: train_cancel_rate_28d
+        description: "Share of the days the train was announced in the 28 before D when it was cancelled."
+        data_type: double
+      - name: train_last_delay
+        description: "Delay at the terminus on the last day with a measured delay, in minutes."
+        data_type: double
+      - name: train_days_since_last_run
+        description: "Days between that last day and D."
+        data_type: integer
+      - name: route_late_rate_28d
+        description: "Share of the trains of the line late by 5 minutes or more over the 28 days before D."
+        data_type: double
+      - name: route_late_rate_7d
+        description: "Same share over the 7 days before D."
+        data_type: double
+      - name: route_late_rate_1d
+        description: "Same share on D-1."
+        data_type: double
+      - name: route_mean_delay_7d
+        description: "Mean delay of the trains of the line over the 7 days before D, in minutes."
+        data_type: double
+      - name: network_late_rate_1d
+        description: "Share of all trains late by 5 minutes or more on D-1."
+        data_type: double
+      - name: train_alerts_1d
+        description: "Alerts affecting this train number on D-1; null when no alert is stored for D-1."
+        data_type: integer
+      - name: route_alerts_1d
+        description: "Alerts affecting a train of the line on D-1; null when no alert is stored for D-1."
+        data_type: integer
 
   - name: fact_train_alerts
     description: "One row per alert and affected train of the service date: the alert lists the train number in its last version of the day, and the day falls within one of its active periods. Keys: (alert_id, date) to dim_alerts, (route_id, date) to dim_routes, date to dim_dates. Not checked by relationships tests: the dimensions are built by other jobs, whose DuckDB this run cannot see."

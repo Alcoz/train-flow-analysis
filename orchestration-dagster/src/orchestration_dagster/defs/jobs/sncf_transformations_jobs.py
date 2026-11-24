@@ -1,5 +1,9 @@
 import dagster as dg
-from orchestration_dagster.defs.partitions import alerts_partitions, daily_partitions
+from orchestration_dagster.defs.partitions import (
+    alerts_partitions,
+    daily_partitions,
+    ml_features_partitions,
+)
 
 # A job has a single partitions definition and the DuckDB of each dbt run is
 # in memory: each job builds what it needs, and only shares Gold files.
@@ -56,4 +60,13 @@ sncf_time_series_delay_job = dg.define_asset_job(
     partitions_def=daily_partitions,
     executor_def=dg.in_process_executor,
     tags={"dagster/priority": "-1", "time_series_delay": "true"},
+)
+
+# Features of the delay prediction for day D, since 2026-09-16. Reads the Gold
+# files of fact_train_trips and fact_train_alerts up to D-1, so it runs after
+# the delay and train alerts jobs of D-1.
+sncf_ml_features_job = dg.define_asset_job(
+    name="sncf_ml_features_job",
+    selection=dg.AssetSelection.assets("ml_delay_features"),
+    partitions_def=ml_features_partitions,
 )

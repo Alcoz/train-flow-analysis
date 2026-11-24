@@ -21,3 +21,11 @@ sncf_train_alerts_preparation_schedule = dg.build_schedule_from_partitioned_job(
     hour_of_day=3,
     minute_of_hour=30,
 )
+
+# After the jobs of 03:00 and 03:30, whose Gold files of D-1 it reads. Its
+# partitions end on the current day: the run builds the features of today.
+sncf_ml_features_schedule = dg.build_schedule_from_partitioned_job(
+    sncf_transformations_jobs.sncf_ml_features_job,
+    hour_of_day=4,
+    minute_of_hour=0,
+)

@@ -36,9 +36,11 @@ exposures:
     type: ml
     maturity: low
     description: >
-      Time series models predicting the delay at each stop, in delay_prediction/.
-      They read gold.time_series_delay.
+      Models predicting the delay of trains, in delay_prediction/. They read
+      gold.ml_delay_features (one row per train, the day before) and
+      gold.time_series_delay (delay over time).
     depends_on:
+      - ref('ml_delay_features')
       - ref('time_series_delay')
     owner:
       name: Baptiste Darnala

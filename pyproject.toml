@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "data-eng",
+    "delay-prediction",
     "orchestration-dagster",
     "pre-commit>=4.6.0",
     "python-dotenv>=1.2.2",
@@ -15,12 +16,14 @@ dependencies = [
 [tool.uv.workspace]
 members = [
     "data-eng",
-    "orchestration-dagster"
+    "orchestration-dagster",
+    "delay_prediction",
 ]
 
 [tool.uv.sources]
 data-eng = { workspace = true }
 orchestration-dagster = { workspace = true }
+delay-prediction = { workspace = true }
 
 
 [tool.ruff.lint]
