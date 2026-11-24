@@ -70,3 +70,11 @@ sncf_ml_features_job = dg.define_asset_job(
     selection=dg.AssetSelection.assets("ml_delay_features"),
     partitions_def=ml_features_partitions,
 )
+
+# Frozen training dataset of the delay prediction: every day of
+# ml_delay_features with its target in fact_train_trips. No schedule and no
+# partitions: each run writes a new version, launched by hand.
+sncf_ml_training_dataset_job = dg.define_asset_job(
+    name="sncf_ml_training_dataset_job",
+    selection=dg.AssetSelection.assets("ml_training_dataset"),
+)

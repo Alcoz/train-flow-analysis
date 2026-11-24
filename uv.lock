@@ -1108,11 +1108,17 @@ name = "delay-prediction"
 version = "0.1.0"
 source = { editable = "delay_prediction" }
 dependencies = [
+    { name = "data-eng" },
     { name = "mlflow" },
+    { name = "polars" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "mlflow", specifier = ">=3.18.0" }]
+requires-dist = [
+    { name = "data-eng", editable = "data-eng" },
+    { name = "mlflow", specifier = ">=3.18.0" },
+    { name = "polars", specifier = ">=1.40.1" },
+]
 
 [[package]]
 name = "distlib"
@@ -2558,6 +2564,7 @@ dependencies = [
     { name = "dagster-docker" },
     { name = "dagster-postgres" },
     { name = "data-eng" },
+    { name = "delay-prediction" },
     { name = "requests" },
 ]
 
@@ -2574,6 +2581,7 @@ requires-dist = [
     { name = "dagster-docker", specifier = ">=0.29.17" },
     { name = "dagster-postgres", specifier = ">=0.29.17" },
     { name = "data-eng", editable = "data-eng" },
+    { name = "delay-prediction", editable = "delay_prediction" },
     { name = "requests", specifier = ">=2.33.1" },
 ]
 

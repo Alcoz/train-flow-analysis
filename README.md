@@ -84,6 +84,7 @@ Models enforce contracts and are covered by dbt tests (uniqueness, not-null, acc
 | `sncf_train_alerts_preparation_job` | `fact_train_alerts`, from the Gold files of the two jobs above | Every day at 03:30, previous day's partition |
 | `sncf_time_series_delay_job` | `time_series_delay`, from the Gold `fact_train_trips` of the day (partitions since 2026-09-14) | None, launched by hand, after the getters in the queue |
 | `sncf_ml_features_job` | `ml_delay_features`, from the Gold `fact_train_trips` and `fact_train_alerts` up to the day before (partitions since 2026-09-16, up to the current day) | Every day at 04:00, current day's partition |
+| `sncf_ml_training_dataset_job` | `ml_training_dataset`: a new frozen training dataset version under `data/ml/datasets/<version>/` (see [`delay_prediction/`](delay_prediction/README.md)) | None, launched by hand |
 
 A job has a single partitions definition, so assets starting on different dates are in different jobs. The DuckDB of each dbt run is in memory: jobs only share Gold files. The dbt project is loaded by three Dagster components (`dbt_ingest` for `tag:daily`, `dbt_alerts` for `tag:alerts`, `dbt_ml` for `tag:ml`), one per partitions definition.
 
@@ -98,9 +99,10 @@ train-flow-analysis/
 │   │   └── utils/s3_connector.py   # boto3 helpers (get, put, paginated listing)
 │   ├── dbt_data_pipeline/          # dbt project: Gold star schema
 │   └── tests/                      # Unit tests (S3 mocked with moto)
+├── delay_prediction/               # Delay prediction: training datasets, MLflow tracking
 ├── orchestration-dagster/          # Dagster project
 │   ├── src/orchestration_dagster/defs/
-│   │   ├── assets/                 # Bronze and Silver assets
+│   │   ├── assets/                 # Bronze and Silver assets, training dataset
 │   │   ├── dbt_ingest/             # dbt project loaded as Dagster assets
 │   │   ├── dbt_alerts/  dbt_ml/    # Same dbt project, other partitions (alerts, ML features)
 │   │   ├── jobs/  schedules/       # Jobs and their schedules
@@ -113,7 +115,7 @@ train-flow-analysis/
 ├── docker-compose.yaml             # Orchestrator, webserver and daemon services
 ├── deploy.sh                       # Remote deployment over SSH
 ├── Makefile                        # Developer commands
-└── pyproject.toml                  # uv workspace (data-eng, orchestration-dagster)
+└── pyproject.toml                  # uv workspace (data-eng, delay_prediction, orchestration-dagster)
 ```
 
 ## Tech stack

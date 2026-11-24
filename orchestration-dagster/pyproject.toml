@@ -9,6 +9,7 @@ dependencies = [
     "dagster-docker>=0.29.17",
     "dagster-postgres>=0.29.17",
     "data-eng",
+    "delay-prediction",
     "requests>=2.33.1",
 ]
 
@@ -37,5 +38,6 @@ registry_modules = [
 
 [tool.uv.sources]
 data-eng = { workspace = true }
+delay-prediction = { workspace = true }
 
 
