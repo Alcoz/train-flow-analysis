@@ -11,6 +11,7 @@ dependencies = [
     "data-eng",
     "mlflow>=3.18.0",
     "polars>=1.40.1",
+    "scikit-learn>=1.9.1",
 ]
 
 [build-system]

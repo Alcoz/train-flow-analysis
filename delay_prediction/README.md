@@ -24,7 +24,31 @@ from delay_prediction.datasets import load_dataset
 train, valid, manifest = load_dataset("latest", cache_dir="data/ml/datasets")
 ```
 
+List the versions on the bucket, or log one to MLflow (e.g. a version written while MLflow was not configured in the orchestrator):
+
+```bash
+uv run --env-file <env file> python -m delay_prediction.datasets list
+uv run --env-file <env file> python -m delay_prediction.datasets log <version>
+```
+
 Without a client, `load_dataset` reads the bucket with the `S3_*` and `BUCKET_NAME` variables (locally: `uv run --env-file <env file> python ...`). With `cache_dir`, a version is copied there on its first read and read from there afterwards; `data/` is ignored by git.
+
+## Baselines
+
+[`baseline.py`](src/delay_prediction/baseline.py) scores the rules a trained model must beat, on a dataset version:
+
+| Baseline | Probability of being late |
+| --- | --- |
+| `history` | Late rate of the train over the 28 days before D (`train_late_rate_28d`); without history, late rate of its line (`route_late_rate_28d`); without either, late rate of the training set. |
+| `constant` | Late rate of the training set, for every train: what a model knowing nothing of the features would do. |
+
+Every model is compared on the same metrics of the validation set ([`metrics.py`](src/delay_prediction/metrics.py)): `pr_auc` (average precision, the main one: late trains are about 1 in 4), `roc_auc` (0.5 is random), `brier` (quality of the probabilities, lower is better), and `precision` / `recall` at the threshold maximizing F1 on the training set.
+
+```bash
+uv run --env-file <env file> python -m delay_prediction.baseline --dataset latest
+```
+
+Each baseline is logged as a MLflow run tagged `purpose=baseline`, with the dataset version and its inputs; `--no-mlflow` only prints the metrics. The dataset is cached under `data/ml/datasets/` (`--cache-dir`).
 
 ## MLflow
 

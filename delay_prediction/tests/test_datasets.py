@@ -21,6 +21,8 @@ from delay_prediction.datasets import (
 )
 from moto import mock_aws
 
+from delay_prediction import datasets
+
 BUCKET = "test-bucket"
 FIRST_DAY = date(2026, 10, 1)
 DAYS = 10
@@ -199,3 +201,26 @@ def test_trip_id_changed_matched_by_unique_train_number():
 
     assert labelled["trip_id"].to_list() == ["OLD_A"]
     assert labelled[TARGET].to_list() == [True]
+
+
+def test_log_existing_version_reuses_the_written_version(s3_client, monkeypatch):
+    """Logging a written version sends its own data and manifest to MLflow."""
+    version = build(s3_client)
+    write_dataset(s3_client, BUCKET, version)
+    logged = {}
+
+    def fake_log(dataset, source_uri):
+        logged.update(dataset=dataset, source_uri=source_uri)
+        return "run-1"
+
+    monkeypatch.setattr(datasets, "log_dataset_to_mlflow", fake_log)
+
+    run_id = datasets.log_existing_version("latest", s3_client=s3_client, bucket=BUCKET)
+
+    assert run_id == "run-1"
+    assert logged["dataset"].name == version.name
+    assert logged["dataset"].train.equals(version.train)
+    assert logged["dataset"].manifest == version.manifest
+    assert logged["source_uri"] == f"s3://{BUCKET}/data/ml/datasets/{version.name}"
+    # No new version written
+    assert list_versions(s3_client, BUCKET) == [version.name]

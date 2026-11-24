@@ -11,8 +11,14 @@ version is frozen under ``data/ml/datasets/<version>/`` on the bucket:
 Versions are named ``YYYY-MM-DD_HHMMSS_<digest>`` (UTC build time, then the
 first characters of the data digest): sorting the names sorts them by build
 time, and ``latest`` is the last one.
+
+Log a version already on the bucket to MLflow (e.g. written while MLflow
+was not configured):
+
+    uv run --env-file <env file> python -m delay_prediction.datasets log <version>
 """
 
+import argparse
 import hashlib
 import io
 import json
@@ -393,3 +399,41 @@ def log_dataset_to_mlflow(version: DatasetVersion, source_uri: str) -> str:
             mlflow.log_input(dataset, context=split)
         mlflow.log_dict(version.manifest, "manifest.json")
     return run.info.run_id
+
+
+def log_existing_version(
+    version: str, s3_client=None, bucket: str | None = None
+) -> str:
+    """Log a dataset version already on the bucket to MLflow, return the run id.
+
+    Logs the same metadata as when the version was built, without writing a
+    new version.
+    """
+    if s3_client is None:
+        s3_client, bucket = s3_client_from_env()
+    if version == "latest":
+        version = list_versions(s3_client, bucket)[-1]
+    train, valid, manifest = load_dataset(version, s3_client=s3_client, bucket=bucket)
+    dataset = DatasetVersion(name=version, train=train, valid=valid, manifest=manifest)
+    return log_dataset_to_mlflow(dataset, f"s3://{bucket}/{DATASETS_PREFIX}/{version}")
+
+
+def main() -> None:
+    """Command line of the datasets: list the versions or log one to MLflow."""
+    parser = argparse.ArgumentParser(description="Training datasets on the bucket")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("list", help="List the complete versions, oldest first")
+    log = commands.add_parser("log", help="Log a version to MLflow")
+    log.add_argument("version", help="Version name, or latest")
+    args = parser.parse_args()
+
+    if args.command == "list":
+        s3_client, bucket = s3_client_from_env()
+        print("\n".join(list_versions(s3_client, bucket)))
+    elif args.command == "log":
+        run_id = log_existing_version(args.version)
+        print(f"Version {args.version} logged to MLflow: run {run_id}")
+
+
+if __name__ == "__main__":
+    main()

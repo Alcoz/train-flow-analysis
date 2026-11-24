@@ -1111,6 +1111,7 @@ dependencies = [
     { name = "data-eng" },
     { name = "mlflow" },
     { name = "polars" },
+    { name = "scikit-learn" },
 ]
 
 [package.metadata]
@@ -1118,6 +1119,7 @@ requires-dist = [
     { name = "data-eng", editable = "data-eng" },
     { name = "mlflow", specifier = ">=3.18.0" },
     { name = "polars", specifier = ">=1.40.1" },
+    { name = "scikit-learn", specifier = ">=1.9.1" },
 ]
 
 [[package]]
