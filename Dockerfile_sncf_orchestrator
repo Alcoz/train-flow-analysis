@@ -10,6 +10,8 @@ COPY .python-version pyproject.toml uv.lock ./
 # Code source
 COPY orchestration-dagster orchestration-dagster
 COPY data-eng data-eng
+# Membre du workspace uv : uv sync échoue si un membre manque
+COPY delay_prediction delay_prediction
 
 RUN uv sync --frozen --no-dev
 
