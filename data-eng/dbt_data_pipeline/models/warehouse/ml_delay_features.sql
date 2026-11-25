@@ -78,7 +78,9 @@ planned AS (
             + split_part(st.arrival_time, ':', 2)::INT * 60
             + split_part(st.arrival_time, ':', 3)::INT
         ) AS last_arrival_seconds,
-        count(*) AS planned_stops
+        count(*) AS planned_stops,
+        arg_min(st.stop_id, st.stop_sequence) AS origin_stop_id,
+        arg_max(st.stop_id, st.stop_sequence) AS destination_stop_id
     FROM {{ source("silver", "stop_times") }} AS st
     INNER JOIN announced AS a
         ON st.trip_id = a.trip_id
@@ -86,6 +88,19 @@ planned AS (
     WHERE {{ gtfs_version("st.filename") }}
         BETWEEN {{ run_date() }} - {{ version_lookback }} AND {{ run_date() }} - 1
     GROUP BY st.trip_id
+),
+
+-- Coordinates of the stops in that version
+stops AS (
+    SELECT
+        s.stop_id,
+        s.stop_lat,
+        s.stop_lon
+    FROM {{ source("silver", "stops") }} AS s
+    INNER JOIN version AS v
+        ON {{ gtfs_version("s.filename") }} = v.gtfs_version
+    WHERE {{ gtfs_version("s.filename") }}
+        BETWEEN {{ run_date() }} - {{ version_lookback }} AND {{ run_date() }} - 1
 ),
 
 -- Announced trains of the days before D. The delay is only kept when it was
@@ -177,6 +192,12 @@ SELECT
     (p.first_departure_seconds // 3600 % 24)::INT AS departure_hour,
     ((p.last_arrival_seconds - p.first_departure_seconds) // 60)::INT AS planned_duration_minutes,
     p.planned_stops::INT AS planned_stops,
+    -- Stop ids hold the train type: StopPoint:OCE<type>-<UIC code>
+    NULLIF(regexp_extract(p.origin_stop_id, '^StopPoint:OCE(.+)-[0-9]+$', 1), '') AS train_type,
+    os.stop_lat::DOUBLE AS origin_lat,
+    os.stop_lon::DOUBLE AS origin_lon,
+    ds.stop_lat::DOUBLE AS destination_lat,
+    ds.stop_lon::DOUBLE AS destination_lon,
     coalesce(th.train_runs_28d, 0)::INT AS train_runs_28d,
     th.train_late_rate_28d::DOUBLE AS train_late_rate_28d,
     th.train_late_rate_7d::DOUBLE AS train_late_rate_7d,
@@ -194,6 +215,10 @@ SELECT
 FROM announced AS a
 LEFT JOIN planned AS p
     ON a.trip_id = p.trip_id
+LEFT JOIN stops AS os
+    ON p.origin_stop_id = os.stop_id
+LEFT JOIN stops AS ds
+    ON p.destination_stop_id = ds.stop_id
 LEFT JOIN train_history AS th
     ON a.train_number = th.train_number
 LEFT JOIN route_history AS rh

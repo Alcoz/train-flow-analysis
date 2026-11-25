@@ -26,11 +26,15 @@ LATE_DELAY_SECONDS = 300
 TARGET = "is_late"
 KEY_COLUMNS = ["date", "trip_id"]
 ID_COLUMNS = ["train_number", "route_id", "gtfs_version"]
-FEATURE_COLUMNS = [
+NUMERIC_FEATURE_COLUMNS = [
     "day_of_week",
     "departure_hour",
     "planned_duration_minutes",
     "planned_stops",
+    "origin_lat",
+    "origin_lon",
+    "destination_lat",
+    "destination_lon",
     "train_runs_28d",
     "train_late_rate_28d",
     "train_late_rate_7d",
@@ -46,6 +50,8 @@ FEATURE_COLUMNS = [
     "train_alerts_1d",
     "route_alerts_1d",
 ]
+CATEGORICAL_FEATURE_COLUMNS = ["train_type"]
+FEATURE_COLUMNS = NUMERIC_FEATURE_COLUMNS + CATEGORICAL_FEATURE_COLUMNS
 
 # First day with 28 days of history in the features
 DEFAULT_FIRST_DATE = date(2026, 10, 13)

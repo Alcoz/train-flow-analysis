@@ -33,3 +33,6 @@ dagster-postgres:
 
 train-baseline:
 	uv run --env-file .env.google python -m delay_prediction.baseline
+
+train-models:
+	uv run --env-file .env.google python -m delay_prediction.models

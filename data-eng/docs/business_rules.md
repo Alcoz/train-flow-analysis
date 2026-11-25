@@ -92,9 +92,10 @@ The two groups are clearly apart, so any cutoff between D-3 and D-13 gives the s
 | Rule | Value |
 | --- | --- |
 | Trains | Trains of D in the **latest GTFS version published before D** (looked up over 7 versions), the one available on the morning of D. Trains added in real time are left out. |
-| Inputs | Strictly before D: planned times from that version, histories from `fact_train_trips` of D-28 to D-1, alerts from `fact_train_alerts` of D-1. Nothing of D, so the model cannot learn from information it would not have when predicting. |
+| Inputs | Strictly before D: planned times, first and last stop (coordinates, train type) from that version, histories from `fact_train_trips` of D-28 to D-1, alerts from `fact_train_alerts` of D-1. Nothing of D, so the model cannot learn from information it would not have when predicting. |
 | Delay of a past day | Delay at the effective terminus of a train seen running and not cancelled, early arrivals as 0. Trains not seen in the feed have no delay: they count in no rate. |
 | Late | Delay at the terminus of **5 minutes or more**. |
+| Train type | Read from the stop ids of the train, `StopPoint:OCE<type>-<UIC code>` (e.g. `Train TER`, `TGV INOUI`, `Car TER`). |
 | Missing history | Rates and means are null when the train or line has no measured delay in the window (e.g. a new train). Alert counts are null when no alert is stored for D-1 (before 2026-10-07). |
 | Target | Not stored: joined from `fact_train_trips` of D when building the training set, so the partition of D can be built before D. |
 

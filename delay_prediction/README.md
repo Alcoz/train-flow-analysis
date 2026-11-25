@@ -33,6 +33,20 @@ Metrics on the validation set ([`metrics.py`](src/delay_prediction/metrics.py)):
 make train-baseline
 ```
 
+## Models
+
+[`models.py`](src/delay_prediction/models.py) trains four models on the training set and measures them on the validation set, with the metrics of the baselines:
+
+- `logistic_regression` and `random_forest`: they do not accept nulls. A null is replaced by the median of the training set and an added column tells the model the value was missing (`SimpleImputer(strategy="median", add_indicator=True)`). The logistic regression also gets standardized features.
+- `hist_gradient_boosting` and `xgboost`: they handle nulls themselves.
+- The train type is one-hot encoded for every model.
+
+A train is predicted late when its late probability is above the threshold with the best F1 score on the validation set. Each model is a MLflow run tagged `purpose=model`. XGBoost needs OpenMP on macOS (`brew install libomp`).
+
+```bash
+make train-models
+```
+
 ## MLflow
 
 Tracking and registry are on Databricks (variables in `.env.example`, passed to the orchestrator by docker-compose). Check the connection:
