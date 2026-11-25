@@ -1,6 +1,15 @@
 """Metrics shared by every model of the delay prediction."""
 
-from sklearn.metrics import precision_recall_fscore_support
+import numpy as np
+from sklearn.metrics import precision_recall_curve, precision_recall_fscore_support
+
+
+def best_f1_threshold(is_late, late_probabilities) -> float:
+    """Return the probability threshold with the best F1 score."""
+    precision, recall, thresholds = precision_recall_curve(is_late, late_probabilities)
+    f1 = 2 * precision * recall / np.maximum(precision + recall, 1e-12)
+    # The last precision and recall have no threshold
+    return float(thresholds[np.argmax(f1[:-1])])
 
 
 def classification_metrics(is_late, predicted_late) -> dict:
