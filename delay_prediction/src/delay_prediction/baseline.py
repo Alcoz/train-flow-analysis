@@ -3,6 +3,8 @@
 - train_rate_7d_above_28d: a train is predicted late when it was late more often over the
   last 7 days than over the last 28 days. A train without history is
   predicted on time.
+- route_rate_7d_above_28d: same rule with the late rates of the line of the
+  train. A train whose line has no history is predicted on time.
 - late_rate_above_0.5: a train is predicted late when its late rate over
   28 days (else its line's over 28 days, else the network's on D-1) is
   above 0.5.
@@ -27,7 +29,7 @@ from delay_prediction.metrics import best_f1_threshold, classification_metrics
 
 
 def evaluate_history_train(valid: pl.DataFrame):
-    """Return the metrics on valid of the history rule."""
+    """Return the metrics on valid when a train is late if its 7 day rate is above its 28 day rate."""
     predicted_late = (
         valid["train_late_rate_7d"] > valid["train_late_rate_28d"]
     ).fill_null(False)
@@ -35,7 +37,7 @@ def evaluate_history_train(valid: pl.DataFrame):
 
 
 def evaluate_history_route(valid: pl.DataFrame):
-    """Return the metrics on valid of the history rule."""
+    """Return the metrics on valid when a train is late if its line 7 day rate is above its 28 day rate."""
     predicted_late = (
         valid["route_late_rate_7d"] > valid["route_late_rate_28d"]
     ).fill_null(False)

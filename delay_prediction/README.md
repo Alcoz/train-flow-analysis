@@ -22,6 +22,7 @@ splits, version = load_dataset()  # latest version: splits["train"], ["valid"], 
 [`baseline.py`](src/delay_prediction/baseline.py) gives the scores a trained model must beat:
 
 - `train_rate_7d_above_28d`: a train is predicted late when it was late more often over the last 7 days than over the last 28 days (`train_late_rate_7d > train_late_rate_28d`). A train without history is predicted on time.
+- `route_rate_7d_above_28d`: same rule with the late rates of the line of the train (`route_late_rate_7d > route_late_rate_28d`). A train whose line has no history is predicted on time.
 - `late_rate_above_0.5`: a train is predicted late when its late rate over 28 days (else its line's over 28 days, else the network's on D-1) is above 0.5.
 - `late_rate_above_best_f1_threshold`: same late rate, compared to the threshold with the best F1 score on the training set.
 - `all_trains_late`: every train is predicted late, the score without any information on the trains.
