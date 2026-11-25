@@ -253,19 +253,29 @@ models:
       - type: primary_key
         columns: [trip_id, date]
         warn_unsupported: false
+    # Tests read only the partition of the run: the view of the model reads
+    # every partition, some of which parallel runs may be rewriting
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
             combination_of_columns: [trip_id, date]
+          config:
+            where: "date = '{{ var('today', run_started_at.strftime('%Y-%m-%d')) }}'"
     columns:
       - name: date
         description: "Day the features are for (day D of the train)."
         data_type: date
-        data_tests: [not_null]
+        data_tests:
+          - not_null:
+              config:
+                where: "date = '{{ var('today', run_started_at.strftime('%Y-%m-%d')) }}'"
       - name: trip_id
         description: "GTFS trip_id of the train in the GTFS version used."
         data_type: varchar
-        data_tests: [not_null]
+        data_tests:
+          - not_null:
+              config:
+                where: "date = '{{ var('today', run_started_at.strftime('%Y-%m-%d')) }}'"
       - name: train_number
         description: "Identifier used by alerts and to follow a train across days ('OCESN862402F')."
         data_type: varchar
@@ -275,11 +285,17 @@ models:
       - name: gtfs_version
         description: "Latest GTFS version published before D announcing trains for D."
         data_type: date
-        data_tests: [not_null]
+        data_tests:
+          - not_null:
+              config:
+                where: "date = '{{ var('today', run_started_at.strftime('%Y-%m-%d')) }}'"
       - name: day_of_week
         description: "ISO day of week of D, 1 = Monday."
         data_type: integer
-        data_tests: [not_null]
+        data_tests:
+          - not_null:
+              config:
+                where: "date = '{{ var('today', run_started_at.strftime('%Y-%m-%d')) }}'"
       - name: departure_hour
         description: "Hour of the planned first departure (local time, 0 to 23)."
         data_type: integer
@@ -307,7 +323,10 @@ models:
       - name: train_runs_28d
         description: "Days of the 28 before D with a measured delay for this train number."
         data_type: integer
-        data_tests: [not_null]
+        data_tests:
+          - not_null:
+              config:
+                where: "date = '{{ var('today', run_started_at.strftime('%Y-%m-%d')) }}'"
       - name: train_late_rate_28d
         description: "Share of these days with a delay at the terminus of 5 minutes or more; null without history."
         data_type: double
