@@ -289,6 +289,21 @@ models:
       - name: planned_stops
         description: "Number of planned stops."
         data_type: integer
+      - name: train_type
+        description: "Type of the train, read from its stop ids ('Train TER', 'TGV INOUI', 'Car TER')."
+        data_type: varchar
+      - name: origin_lat
+        description: "Latitude of the first planned stop."
+        data_type: double
+      - name: origin_lon
+        description: "Longitude of the first planned stop."
+        data_type: double
+      - name: destination_lat
+        description: "Latitude of the last planned stop."
+        data_type: double
+      - name: destination_lon
+        description: "Longitude of the last planned stop."
+        data_type: double
       - name: train_runs_28d
         description: "Days of the 28 before D with a measured delay for this train number."
         data_type: integer
