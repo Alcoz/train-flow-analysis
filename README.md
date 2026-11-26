@@ -85,6 +85,8 @@ Models enforce contracts and are covered by dbt tests (uniqueness, not-null, acc
 | `sncf_time_series_delay_job` | `time_series_delay`, from the Gold `fact_train_trips` of the day (partitions since 2026-09-14) | None, launched by hand, after the getters in the queue |
 | `sncf_ml_features_job` | `ml_delay_features`, from the Gold `fact_train_trips` and `fact_train_alerts` up to the day before (partitions since 2026-09-16, up to the current day) | Every day at 04:00, current day's partition |
 | `sncf_ml_training_job` | `ml_training_dataset`: a new frozen training dataset version under `data/ml/datasets/<version>/`, then `ml_delay_model`: models trained on it, the best promoted to champion when it deserves it (see [`delay_prediction/`](delay_prediction/README.md)) | Monday 05:00 |
+| `sncf_ml_prediction_job` | `ml_delay_predictions`: the champion predicts the trains of the day, under `data/ml/predictions/date=D/` | Every day at 04:30, current day's partition |
+| `sncf_ml_monitoring_job` | `ml_delay_monitoring`: Evidently reports (drift, precision, recall, F1) of the predictions of the day before, Discord alert on failed tests | Every day at 04:30, previous day's partition |
 
 A job has a single partitions definition, so assets starting on different dates are in different jobs. The DuckDB of each dbt run is in memory: jobs only share Gold files. The dbt project is loaded by three Dagster components (`dbt_ingest` for `tag:daily`, `dbt_alerts` for `tag:alerts`, `dbt_ml` for `tag:ml`), one per partitions definition.
 

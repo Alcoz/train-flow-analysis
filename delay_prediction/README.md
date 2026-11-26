@@ -57,6 +57,17 @@ The Dagster job `sncf_ml_training_job` runs this loop every Monday at 05:00: a n
 make train-models
 ```
 
+## Prediction and monitoring
+
+Every day at 04:30, the Dagster job `sncf_ml_prediction_job` predicts the trains of the day with the champion ([`predictions.py`](src/delay_prediction/predictions.py)), from their features: `data/ml/predictions/date=D/predictions.parquet`, with the `champion_version` that made them.
+
+The day after, once the trains have run, `sncf_ml_monitoring_job` compares them to the delays with Evidently ([`monitoring.py`](src/delay_prediction/monitoring.py)), in two reports:
+
+- drift: the drift of each feature against the training set of the champion;
+- performance: precision, recall and F1 of the predictions.
+
+Two tests give a Discord message when they fail: the F1 of the day is not more than 0.05 below the test F1 of the champion, and less than half of the features drift. The reports are in the Evidently workspace `s3://<bucket>/data/ml/monitoring`, seen in the Evidently UI (service `evidently_ui` of docker-compose, port 8000 on localhost of the server).
+
 ## MLflow
 
 Tracking and registry are on Databricks (variables in `.env.example`, passed to the orchestrator by docker-compose). Check the connection:

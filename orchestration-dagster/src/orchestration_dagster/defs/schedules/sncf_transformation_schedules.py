@@ -30,6 +30,21 @@ sncf_ml_features_schedule = dg.build_schedule_from_partitioned_job(
     minute_of_hour=0,
 )
 
+# After the 04:00 features: the champion predicts the trains of today.
+sncf_ml_prediction_schedule = dg.build_schedule_from_partitioned_job(
+    sncf_transformations_jobs.sncf_ml_prediction_job,
+    hour_of_day=4,
+    minute_of_hour=30,
+)
+
+# After the 03:00 delay job: the predictions of yesterday against the delays
+# of yesterday.
+sncf_ml_monitoring_schedule = dg.build_schedule_from_partitioned_job(
+    sncf_transformations_jobs.sncf_ml_monitoring_job,
+    hour_of_day=4,
+    minute_of_hour=30,
+)
+
 # Every Monday after the 04:00 features: the dataset includes the trains of
 # Sunday, built at 03:00.
 sncf_ml_training_schedule = dg.ScheduleDefinition(

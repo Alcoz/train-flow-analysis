@@ -78,3 +78,18 @@ sncf_ml_training_job = dg.define_asset_job(
     name="sncf_ml_training_job",
     selection=dg.AssetSelection.assets("ml_training_dataset", "ml_delay_model"),
 )
+
+# Prediction of the trains of day D by the champion, from the features of D.
+sncf_ml_prediction_job = dg.define_asset_job(
+    name="sncf_ml_prediction_job",
+    selection=dg.AssetSelection.assets("ml_delay_predictions"),
+    partitions_def=ml_features_partitions,
+)
+
+# Monitoring of the predictions of D-1 with Evidently: reads the Gold file of
+# fact_train_trips of D-1, so it runs after the delay job.
+sncf_ml_monitoring_job = dg.define_asset_job(
+    name="sncf_ml_monitoring_job",
+    selection=dg.AssetSelection.assets("ml_delay_monitoring"),
+    partitions_def=daily_partitions,
+)

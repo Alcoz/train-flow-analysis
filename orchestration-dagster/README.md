@@ -76,6 +76,8 @@ Order of the jobs, from their dependencies:
 | `sncf_time_series_delay_job` | Gold `time_series_delay` (rebuilds `int_planned_trains` in memory) | none, launched by hand on the partitions wanted |
 | `purge_old_runs_job` | deletes getter runs older than 14 days | 04:00 |
 | `sncf_ml_training_job` | `ml_training_dataset` (new dataset version), then `ml_delay_model` (models trained on it, best promoted to champion when it deserves it) | Monday 05:00 |
+| `sncf_ml_prediction_job` | `ml_delay_predictions`: predictions of the trains of the day by the champion | 04:30, current day's partition |
+| `sncf_ml_monitoring_job` | `ml_delay_monitoring`: Evidently reports of the predictions of the day before, Discord message on failed tests | 04:30, previous day's partition |
 
 - Day D is built on D+1: the Silver trip updates of D also read the snapshots fetched after midnight (overnight trains).
 - `sncf_train_alerts_preparation_job` reads the Gold files of the day written by the two 03:00 jobs: each job runs dbt in its own in-memory DuckDB, so jobs only share Gold files.
@@ -97,7 +99,8 @@ Environment variables, in the `.env` of the repository root:
 | --- | --- |
 | `S3_API`, `S3_ACCESS_KEY`, `S3_SECRET_ACCESS_KEY`, `REGION_NAME`, `BUCKET_NAME` | S3 resource and dbt |
 | `DAGSTER_POSTGRES_USER`, `DAGSTER_POSTGRES_PASSWORD`, `DAGSTER_POSTGRES_DB`, `DAGSTER_POSTGRES_HOST` | Dagster storage (`dagster.yaml`) |
-| `DISCORD_WEBHOOK_URL`, `HEALTHCHECK_PING_KEY` | Sensors, optional |
+| `DISCORD_WEBHOOK_URL`, `HEALTHCHECK_PING_KEY` | Sensors and `ml_delay_monitoring`, optional |
+| `EVIDENTLY_WORKSPACE`, `FSSPEC_S3_*` | `ml_delay_monitoring`: Evidently workspace and its S3 access, set by docker-compose from the `S3_*` variables |
 
 ## Run
 
