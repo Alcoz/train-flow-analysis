@@ -11,7 +11,9 @@ The train type is one-hot encoded for every model.
 A model gives a late probability: a train is predicted late when it is above
 the threshold with the best F1 score on the validation set.
 
-Each model is logged as a MLflow run tagged purpose=model:
+Each model is logged as a MLflow run tagged purpose=model. Only the model with
+the best F1 score is saved in its run (artifact "model"), with its threshold:
+its predict() gives late or not late.
 
     make train-models
 """
@@ -22,8 +24,10 @@ import mlflow
 import polars as pl
 from sklearn.compose import make_column_transformer
 from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
+from sklearn.frozen import FrozenEstimator
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import FixedThresholdClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
@@ -69,6 +73,18 @@ def build_models() -> dict:
     }
 
 
+# Types of each model that skops, the format MLflow saves models in, does not
+# load by default. Trusted because only this pipeline writes the saved models.
+SKOPS_TRUSTED_TYPES = {
+    "logistic_regression": ["numpy.dtype"],
+    "random_forest": ["numpy.dtype", "sklearn.tree._tree.Tree"],
+    "hist_gradient_boosting": [
+        "sklearn.ensemble._hist_gradient_boosting.predictor.TreePredictor"
+    ],
+    "xgboost": ["xgboost.core.Booster", "xgboost.sklearn.XGBClassifier"],
+}
+
+
 def features(trains: pl.DataFrame) -> pl.DataFrame:
     """Return the features, numbers as floats so that their nulls become NaN."""
     return trains.select(
@@ -86,27 +102,64 @@ def evaluate_model(model, train: pl.DataFrame, valid: pl.DataFrame):
 
 
 def log_model_run(name: str, threshold: float, metrics: dict, splits, version: str):
-    """Log a model evaluation as a MLflow run."""
-    with mlflow.start_run(run_name=f"model_{name}"):
+    """Log a model evaluation as a MLflow run and return its id."""
+    with mlflow.start_run(run_name=f"model_{name}") as run:
         mlflow.set_tags({"purpose": "model", "dataset_version": version})
         mlflow.log_param("threshold", threshold)
         mlflow.log_metrics(metrics)
         log_dataset_inputs(splits, version, os.environ["BUCKET_NAME"])
+    return run.info.run_id
+
+
+def with_threshold(model, threshold: float) -> FixedThresholdClassifier:
+    """Return the trained model predicting late when its late probability reaches the threshold."""
+    return FixedThresholdClassifier(
+        FrozenEstimator(model), threshold=threshold, response_method="predict_proba"
+    )
+
+
+def save_best_model(evaluations: list[dict]) -> dict:
+    """Save the model with the best F1 score in its MLflow run and return its evaluation."""
+    best = max(evaluations, key=lambda evaluation: evaluation["f1"])
+    with mlflow.start_run(run_id=best["run_id"]):
+        mlflow.sklearn.log_model(
+            with_threshold(best["trained_model"], best["threshold"]),
+            name="model",
+            skops_trusted_types=SKOPS_TRUSTED_TYPES[best["model"]],
+        )
+    return best
 
 
 def main() -> None:
-    """Train and evaluate the models on the latest dataset and log them to MLflow."""
+    """Train and evaluate the models on the latest dataset, log them to MLflow and save the best."""
     splits, version = load_dataset()
     mlflow.set_experiment(os.environ["MLFLOW_EXPERIMENT_NAME"])
 
-    results = []
+    evaluations = []
     for name, model in build_models().items():
         threshold, metrics = evaluate_model(model, splits["train"], splits["valid"])
-        log_model_run(name, threshold, metrics, splits, version)
-        results.append({"model": name, "threshold": threshold} | metrics)
+        run_id = log_model_run(name, threshold, metrics, splits, version)
+        evaluations.append(
+            {"model": name, "threshold": threshold}
+            | metrics
+            | {"run_id": run_id, "trained_model": model}
+        )
+    best = save_best_model(evaluations)
 
     print(f"Dataset {version}, validation metrics:")
-    print(pl.DataFrame(results))
+    print(
+        pl.DataFrame(
+            [
+                {
+                    key: value
+                    for key, value in evaluation.items()
+                    if key != "trained_model"
+                }
+                for evaluation in evaluations
+            ]
+        )
+    )
+    print(f"Saved model: {best['model']}, run {best['run_id']}")
 
 
 if __name__ == "__main__":
