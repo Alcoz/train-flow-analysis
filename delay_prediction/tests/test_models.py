@@ -58,16 +58,10 @@ def evaluation_in_new_run(name: str, train, valid) -> dict:
     )
 
 
+@pytest.mark.usefixtures("local_mlflow")
 @pytest.mark.parametrize("name", build_models())
-def test_best_model_is_saved_with_its_threshold(name, tmp_path, monkeypatch):
+def test_best_model_is_saved_with_its_threshold(name):
     """Only the best model is saved and measured on test; reloaded, it predicts late above its threshold."""
-    monkeypatch.delenv("MLFLOW_REGISTRY_URI", raising=False)
-    mlflow.set_tracking_uri(f"sqlite:///{tmp_path}/mlflow.db")
-    mlflow.set_experiment(
-        experiment_id=mlflow.create_experiment(
-            "test", (tmp_path / "artifacts").as_uri()
-        )
-    )
     train, valid = trains_with_nulls(200, seed=0), trains_with_nulls(100, seed=1)
     test = trains_with_nulls(100, seed=2)
     best = evaluation_in_new_run(name, train, valid)

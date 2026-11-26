@@ -14,8 +14,11 @@ the threshold with the best F1 score on the validation set.
 Each model is logged as a MLflow run tagged purpose=model. Only the model with
 the best F1 score is saved in its run (artifact "model"), with its threshold:
 its predict() gives late or not late. Only this model is measured on the test
-set (metrics test_precision, test_recall, test_f1): a measure, no choice is
-made on it.
+set (metrics test_precision, test_recall, test_f1).
+
+This model is then promoted to champion in the Unity Catalog registry when it
+beats the best baseline and the current champion (see registry.py). The
+decision is the tag promotion of its run.
 
     make train-models
 """
@@ -25,6 +28,8 @@ from datetime import datetime
 
 import mlflow
 import polars as pl
+from mlflow import MlflowClient
+from mlflow.models import infer_signature
 from sklearn.compose import make_column_transformer
 from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.frozen import FrozenEstimator
@@ -35,6 +40,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
 
+from delay_prediction.baseline import evaluate_baselines
 from delay_prediction.datasets import (
     CATEGORICAL_FEATURE_COLUMNS,
     DATASET_VERSION_FORMAT,
@@ -44,6 +50,7 @@ from delay_prediction.datasets import (
     log_dataset_inputs,
 )
 from delay_prediction.metrics import best_f1_threshold, classification_metrics
+from delay_prediction.registry import champion_f1, promote, promotion_refusal
 
 
 def median_imputer() -> SimpleImputer:
@@ -148,14 +155,39 @@ def save_best_model(evaluations: list[dict], test: pl.DataFrame, version: str) -
     model = with_threshold(best["trained_model"], best["threshold"])
     best_test_metrics = test_metrics(model, test)
     with mlflow.start_run(run_id=best["run_id"]):
-        mlflow.sklearn.log_model(
+        model_info = mlflow.sklearn.log_model(
             model,
             name="model",
             skops_trusted_types=SKOPS_TRUSTED_TYPES[best["model"]],
             metadata=dataset_metadata(version),
+            # Unity Catalog only registers models with a signature
+            signature=infer_signature(
+                features(test).to_pandas(), model.predict(features(test))
+            ),
         )
         mlflow.log_metrics(best_test_metrics)
-    return best | best_test_metrics
+    return best | best_test_metrics | {"model_uri": model_info.model_uri}
+
+
+def promote_if_better(best: dict, splits: dict) -> str:
+    """Promote the best model to champion when it deserves it; return the decision.
+
+    The decision is also a tag of its run.
+    """
+    model_name = os.environ["MLFLOW_REGISTERED_MODEL_NAME"]
+    baselines = evaluate_baselines(splits["train"], splits["valid"])
+    best_baseline_f1 = max(metrics["f1"] for metrics, _ in baselines.values())
+    valid = splits["valid"]
+    current_champion_f1 = champion_f1(model_name, features(valid), valid[TARGET])
+    refusal = promotion_refusal(best, best_baseline_f1, current_champion_f1)
+    if refusal is None:
+        decision = (
+            f"promoted: {model_name} version {promote(best['model_uri'], model_name)}"
+        )
+    else:
+        decision = f"not promoted: {refusal}"
+    MlflowClient().set_tag(best["run_id"], "promotion", decision)
+    return decision
 
 
 def results_table(evaluations: list[dict], best: dict) -> pl.DataFrame:
@@ -189,10 +221,11 @@ def main() -> None:
             | {"run_id": run_id, "trained_model": model}
         )
     best = save_best_model(evaluations, splits["test"], version)
+    decision = promote_if_better(best, splits)
 
     print(f"Dataset {version}, metrics on the validation and test sets:")
     print(results_table(evaluations, best))
-    print(f"Saved model: {best['model']}, run {best['run_id']}")
+    print(f"Saved model: {best['model']}, run {best['run_id']}, {decision}")
 
 
 if __name__ == "__main__":

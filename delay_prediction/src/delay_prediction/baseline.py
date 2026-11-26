@@ -82,40 +82,34 @@ def log_baseline(name: str, metrics: dict, splits: dict, version: str, params=No
         log_dataset_inputs(splits, version, os.environ["BUCKET_NAME"])
 
 
+def evaluate_baselines(train: pl.DataFrame, valid: pl.DataFrame) -> dict:
+    """Return the metrics on valid and the params of each baseline, by name."""
+    threshold, best_f1_metrics = evaluate_late_rate_best_f1(train, valid)
+    return {
+        "train_rate_7d_above_28d": (evaluate_history_train(valid), {}),
+        "route_rate_7d_above_28d": (evaluate_history_route(valid), {}),
+        "late_rate_above_0.5": (evaluate_late_rate_above_half(valid), {}),
+        "late_rate_above_best_f1_threshold": (
+            best_f1_metrics,
+            {"threshold": threshold},
+        ),
+        "all_trains_late": (evaluate_all_late(train, valid), {}),
+    }
+
+
 def main() -> None:
     """Evaluate the baselines on the latest dataset and log them to MLflow."""
     splits, version = load_dataset()
     mlflow.set_experiment(os.environ["MLFLOW_EXPERIMENT_NAME"])
 
-    history_train_metrics = evaluate_history_train(splits["valid"])
-    log_baseline("train_rate_7d_above_28d", history_train_metrics, splits, version)
-    history_route_metrics = evaluate_history_route(splits["valid"])
-    log_baseline("route_rate_7d_above_28d", history_route_metrics, splits, version)
-    above_half_metrics = evaluate_late_rate_above_half(splits["valid"])
-    log_baseline("late_rate_above_0.5", above_half_metrics, splits, version)
-    threshold, best_f1_metrics = evaluate_late_rate_best_f1(
-        splits["train"], splits["valid"]
-    )
-    log_baseline(
-        "late_rate_above_best_f1_threshold",
-        best_f1_metrics,
-        splits,
-        version,
-        {"threshold": threshold},
-    )
-    all_late_metrics = evaluate_all_late(splits["train"], splits["valid"])
-    log_baseline("all_trains_late", all_late_metrics, splits, version)
+    baselines = evaluate_baselines(splits["train"], splits["valid"])
+    for name, (metrics, params) in baselines.items():
+        log_baseline(name, metrics, splits, version, params)
 
     print(f"Dataset {version}, validation metrics:")
     print(
         pl.DataFrame(
-            [
-                {"baseline": "train_rate_7d_above_28d"} | history_train_metrics,
-                {"baseline": "route_rate_7d_above_28d"} | history_route_metrics,
-                {"baseline": "late_rate_above_0.5"} | above_half_metrics,
-                {"baseline": "late_rate_above_best_f1_threshold"} | best_f1_metrics,
-                {"baseline": "all_trains_late"} | all_late_metrics,
-            ]
+            [{"baseline": name} | metrics for name, (metrics, _) in baselines.items()]
         )
     )
 
