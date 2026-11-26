@@ -9,6 +9,7 @@ from delay_prediction.models import (
     build_models,
     evaluate_model,
     features,
+    results_table,
     save_best_model,
 )
 
@@ -59,7 +60,7 @@ def evaluation_in_new_run(name: str, train, valid) -> dict:
 
 @pytest.mark.parametrize("name", build_models())
 def test_best_model_is_saved_with_its_threshold(name, tmp_path, monkeypatch):
-    """Only the model with the best F1 is saved; reloaded, it predicts late above its threshold."""
+    """Only the best model is saved and measured on test; reloaded, it predicts late above its threshold."""
     monkeypatch.delenv("MLFLOW_REGISTRY_URI", raising=False)
     mlflow.set_tracking_uri(f"sqlite:///{tmp_path}/mlflow.db")
     mlflow.set_experiment(
@@ -68,14 +69,66 @@ def test_best_model_is_saved_with_its_threshold(name, tmp_path, monkeypatch):
         )
     )
     train, valid = trains_with_nulls(200, seed=0), trains_with_nulls(100, seed=1)
+    test = trains_with_nulls(100, seed=2)
     best = evaluation_in_new_run(name, train, valid)
     worse = evaluation_in_new_run("logistic_regression", train, valid) | {"f1": -1.0}
 
-    saved = save_best_model([worse, best])
-    saved_model = mlflow.sklearn.load_model(f"runs:/{best['run_id']}/model")
+    saved = save_best_model([worse, best], test, "2026-11-25_145528")
+    model_uri = f"runs:/{best['run_id']}/model"
+    saved_model = mlflow.sklearn.load_model(model_uri)
 
-    assert saved is best
+    assert saved["run_id"] == best["run_id"]
+    assert mlflow.models.get_model_info(model_uri).metadata == {
+        "training_dataset": "2026-11-25_145528",
+        "training_dataset_date": "2026-11-25",
+        "training_dataset_time": "14:55:28",
+    }
     assert not mlflow.artifacts.list_artifacts(run_id=worse["run_id"])
+    assert not mlflow.get_run(worse["run_id"]).data.metrics
+    logged_test_f1 = mlflow.get_run(best["run_id"]).data.metrics["test_f1"]
+    assert logged_test_f1 == pytest.approx(saved["test_f1"])
+    assert saved["test_f1"] > 0.9
     late_probabilities = best["trained_model"].predict_proba(features(valid))[:, 1]
     expected = late_probabilities >= best["threshold"]
     assert (saved_model.predict(features(valid)) == expected).all()
+
+
+def test_results_table_puts_each_test_metric_next_to_its_validation_metric():
+    """Columns go metric, test_metric; only the best model has test metrics."""
+    evaluations = [
+        {
+            "model": "a",
+            "threshold": 0.2,
+            "precision": 0.3,
+            "recall": 0.6,
+            "f1": 0.4,
+            "run_id": "1",
+        },
+        {
+            "model": "b",
+            "threshold": 0.3,
+            "precision": 0.4,
+            "recall": 0.7,
+            "f1": 0.5,
+            "run_id": "2",
+        },
+    ]
+    best = evaluations[1] | {
+        "test_precision": 0.35,
+        "test_recall": 0.65,
+        "test_f1": 0.45,
+    }
+
+    table = results_table(evaluations, best)
+
+    assert table.columns == [
+        "model",
+        "threshold",
+        "precision",
+        "test_precision",
+        "recall",
+        "test_recall",
+        "f1",
+        "test_f1",
+    ]
+    assert table["test_f1"].to_list() == [None, 0.45]

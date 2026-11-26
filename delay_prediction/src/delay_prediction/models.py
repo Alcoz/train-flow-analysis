@@ -13,12 +13,15 @@ the threshold with the best F1 score on the validation set.
 
 Each model is logged as a MLflow run tagged purpose=model. Only the model with
 the best F1 score is saved in its run (artifact "model"), with its threshold:
-its predict() gives late or not late.
+its predict() gives late or not late. Only this model is measured on the test
+set (metrics test_precision, test_recall, test_f1): a measure, no choice is
+made on it.
 
     make train-models
 """
 
 import os
+from datetime import datetime
 
 import mlflow
 import polars as pl
@@ -34,6 +37,7 @@ from xgboost import XGBClassifier
 
 from delay_prediction.datasets import (
     CATEGORICAL_FEATURE_COLUMNS,
+    DATASET_VERSION_FORMAT,
     NUMERIC_FEATURE_COLUMNS,
     TARGET,
     load_dataset,
@@ -118,16 +122,56 @@ def with_threshold(model, threshold: float) -> FixedThresholdClassifier:
     )
 
 
-def save_best_model(evaluations: list[dict]) -> dict:
-    """Save the model with the best F1 score in its MLflow run and return its evaluation."""
+def test_metrics(model, test: pl.DataFrame) -> dict:
+    """Return the precision, recall and F1 score of the model on the test set."""
+    metrics = classification_metrics(test[TARGET], model.predict(features(test)))
+    return {f"test_{name}": value for name, value in metrics.items()}
+
+
+def dataset_metadata(version: str) -> dict:
+    """Return the training dataset version and its build date and time (UTC)."""
+    built_at = datetime.strptime(version, DATASET_VERSION_FORMAT)
+    return {
+        "training_dataset": version,
+        "training_dataset_date": f"{built_at:%Y-%m-%d}",
+        "training_dataset_time": f"{built_at:%H:%M:%S}",
+    }
+
+
+def save_best_model(evaluations: list[dict], test: pl.DataFrame, version: str) -> dict:
+    """Save the model with the best F1 score in its MLflow run, with its metrics on test.
+
+    The model metadata hold its training dataset. Return its evaluation and its
+    test metrics.
+    """
     best = max(evaluations, key=lambda evaluation: evaluation["f1"])
+    model = with_threshold(best["trained_model"], best["threshold"])
+    best_test_metrics = test_metrics(model, test)
     with mlflow.start_run(run_id=best["run_id"]):
         mlflow.sklearn.log_model(
-            with_threshold(best["trained_model"], best["threshold"]),
+            model,
             name="model",
             skops_trusted_types=SKOPS_TRUSTED_TYPES[best["model"]],
+            metadata=dataset_metadata(version),
         )
-    return best
+        mlflow.log_metrics(best_test_metrics)
+    return best | best_test_metrics
+
+
+def results_table(evaluations: list[dict], best: dict) -> pl.DataFrame:
+    """Return the metrics of each model, each validation metric next to its test metric.
+
+    Only the best model has test metrics.
+    """
+    rows = []
+    for evaluation in evaluations:
+        is_best = evaluation["run_id"] == best["run_id"]
+        row = {"model": evaluation["model"], "threshold": evaluation["threshold"]}
+        for metric in ["precision", "recall", "f1"]:
+            row[metric] = evaluation[metric]
+            row[f"test_{metric}"] = best[f"test_{metric}"] if is_best else None
+        rows.append(row)
+    return pl.DataFrame(rows)
 
 
 def main() -> None:
@@ -144,21 +188,10 @@ def main() -> None:
             | metrics
             | {"run_id": run_id, "trained_model": model}
         )
-    best = save_best_model(evaluations)
+    best = save_best_model(evaluations, splits["test"], version)
 
-    print(f"Dataset {version}, validation metrics:")
-    print(
-        pl.DataFrame(
-            [
-                {
-                    key: value
-                    for key, value in evaluation.items()
-                    if key != "trained_model"
-                }
-                for evaluation in evaluations
-            ]
-        )
-    )
+    print(f"Dataset {version}, metrics on the validation and test sets:")
+    print(results_table(evaluations, best))
     print(f"Saved model: {best['model']}, run {best['run_id']}")
 
 

@@ -41,7 +41,7 @@ make train-baseline
 - `hist_gradient_boosting` and `xgboost`: they handle nulls themselves.
 - The train type is one-hot encoded for every model.
 
-A train is predicted late when its late probability is above the threshold with the best F1 score on the validation set. Each model is a MLflow run tagged `purpose=model`. Only the model with the best F1 score is saved, as the artifact `model` of its run: a scikit-learn `FixedThresholdClassifier` holding the trained pipeline and its threshold, whose `predict()` gives late or not late. XGBoost needs OpenMP on macOS (`brew install libomp`).
+A train is predicted late when its late probability is above the threshold with the best F1 score on the validation set. Each model is a MLflow run tagged `purpose=model`. Only the model with the best F1 score is saved, as the artifact `model` of its run: a scikit-learn `FixedThresholdClassifier` holding the trained pipeline and its threshold, whose `predict()` gives late or not late. Only this model is measured on the test set (`test_precision`, `test_recall`, `test_f1` in its run): a final measure, no choice is made on it. The model metadata hold its training dataset: `training_dataset` (version), `training_dataset_date` and `training_dataset_time` (UTC build time). XGBoost needs OpenMP on macOS (`brew install libomp`).
 
 ```bash
 make train-models

@@ -57,6 +57,8 @@ FEATURE_COLUMNS = NUMERIC_FEATURE_COLUMNS + CATEGORICAL_FEATURE_COLUMNS
 DEFAULT_FIRST_DATE = date(2026, 10, 13)
 DEFAULT_VALID_DAYS = 14
 DEFAULT_TEST_DAYS = 7
+# A version is the UTC build time of the dataset
+DATASET_VERSION_FORMAT = "%Y-%m-%d_%H%M%S"
 # Written in this order: a version without its test set is incomplete
 SPLIT_NAMES = ("train", "valid", "test")
 
@@ -171,7 +173,7 @@ def build_dataset(
 
 def write_dataset(s3_client, bucket: str, splits: dict) -> str:
     """Write a new dataset version to the bucket and return its name."""
-    version = f"{datetime.now(UTC):%Y-%m-%d_%H%M%S}"
+    version = datetime.now(UTC).strftime(DATASET_VERSION_FORMAT)
     for split_name in SPLIT_NAMES:
         buffer = io.BytesIO()
         splits[split_name].write_parquet(buffer)
