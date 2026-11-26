@@ -4,7 +4,7 @@ Predicts the day before whether an SNCF train will reach its terminus **5 minute
 
 ## Training datasets
 
-The Dagster job `sncf_ml_training_dataset_job` (launched by hand) writes a new version with [`datasets.py`](src/delay_prediction/datasets.py):
+The Dagster job `sncf_ml_training_job` (every Monday at 05:00, or by hand) writes a new version with [`datasets.py`](src/delay_prediction/datasets.py):
 
 - **Rows**: days from `first_date` (default 2026-10-13, the first with 28 days of history) that have their trains. Only trains seen running, not cancelled and with a measured delay are kept. When the SNCF changed a trip_id between two GTFS versions, the train is matched by its number.
 - **Split**: the last `test_days` days (default 7) are the test set, the `valid_days` days before (default 14) the validation set, the days before the training set. The test set is kept aside for the final measure of the chosen model.
@@ -49,7 +49,9 @@ The best model then becomes the champion in the Unity Catalog registry (`MLFLOW_
 - it beats the current champion, measured again on the same validation set;
 - its test F1 is not more than 0.05 below its validation F1.
 
-Only a promoted model becomes a new version of the registered model. The decision is the tag `promotion` of its run. XGBoost needs OpenMP on macOS (`brew install libomp`).
+Only a promoted model becomes a new version of the registered model. The decision is the tag `promotion` of its run.
+
+The Dagster job `sncf_ml_training_job` runs this loop every Monday at 05:00: a new dataset version, then the models trained on it. `MLFLOW_REGISTERED_MODEL_NAME` must be in the `.env` passed to docker-compose. XGBoost needs OpenMP on macOS (`brew install libomp`).
 
 ```bash
 make train-models

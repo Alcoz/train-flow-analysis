@@ -75,6 +75,7 @@ Order of the jobs, from their dependencies:
 | `sncf_train_alerts_preparation_job` | Gold `fact_train_alerts` | 03:30, previous day's partition |
 | `sncf_time_series_delay_job` | Gold `time_series_delay` (rebuilds `int_planned_trains` in memory) | none, launched by hand on the partitions wanted |
 | `purge_old_runs_job` | deletes getter runs older than 14 days | 04:00 |
+| `sncf_ml_training_job` | `ml_training_dataset` (new dataset version), then `ml_delay_model` (models trained on it, best promoted to champion when it deserves it) | Monday 05:00 |
 
 - Day D is built on D+1: the Silver trip updates of D also read the snapshots fetched after midnight (overnight trains).
 - `sncf_train_alerts_preparation_job` reads the Gold files of the day written by the two 03:00 jobs: each job runs dbt in its own in-memory DuckDB, so jobs only share Gold files.

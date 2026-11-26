@@ -206,11 +206,12 @@ def results_table(evaluations: list[dict], best: dict) -> pl.DataFrame:
     return pl.DataFrame(rows)
 
 
-def main() -> None:
-    """Train and evaluate the models on the latest dataset, log them to MLflow and save the best."""
-    splits, version = load_dataset()
-    mlflow.set_experiment(os.environ["MLFLOW_EXPERIMENT_NAME"])
+def train_and_promote(splits: dict, version: str):
+    """Train the models on a dataset, save the best and promote it when it deserves it.
 
+    Return the metrics table, the best model evaluation and the promotion decision.
+    """
+    mlflow.set_experiment(os.environ["MLFLOW_EXPERIMENT_NAME"])
     evaluations = []
     for name, model in build_models().items():
         threshold, metrics = evaluate_model(model, splits["train"], splits["valid"])
@@ -222,9 +223,16 @@ def main() -> None:
         )
     best = save_best_model(evaluations, splits["test"], version)
     decision = promote_if_better(best, splits)
+    return results_table(evaluations, best), best, decision
+
+
+def main() -> None:
+    """Train the models on the latest dataset and print their metrics."""
+    splits, version = load_dataset()
+    table, best, decision = train_and_promote(splits, version)
 
     print(f"Dataset {version}, metrics on the validation and test sets:")
-    print(results_table(evaluations, best))
+    print(table)
     print(f"Saved model: {best['model']}, run {best['run_id']}, {decision}")
 
 

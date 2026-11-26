@@ -71,10 +71,10 @@ sncf_ml_features_job = dg.define_asset_job(
     partitions_def=ml_features_partitions,
 )
 
-# Frozen training dataset of the delay prediction: every day of
-# ml_delay_features with its target in fact_train_trips. No schedule and no
-# partitions: each run writes a new version, launched by hand.
-sncf_ml_training_dataset_job = dg.define_asset_job(
-    name="sncf_ml_training_dataset_job",
-    selection=dg.AssetSelection.assets("ml_training_dataset"),
+# Training loop of the delay prediction: a new dataset version, then the models
+# trained on it, the best promoted to champion when it beats the baseline and
+# the current champion. Scheduled every week.
+sncf_ml_training_job = dg.define_asset_job(
+    name="sncf_ml_training_job",
+    selection=dg.AssetSelection.assets("ml_training_dataset", "ml_delay_model"),
 )

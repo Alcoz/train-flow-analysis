@@ -50,6 +50,7 @@ services:
       MLFLOW_TRACKING_URI: '${MLFLOW_TRACKING_URI:-}'
       MLFLOW_REGISTRY_URI: '${MLFLOW_REGISTRY_URI:-}'
       MLFLOW_EXPERIMENT_NAME: '${MLFLOW_EXPERIMENT_NAME:-}'
+      MLFLOW_REGISTERED_MODEL_NAME: '${MLFLOW_REGISTERED_MODEL_NAME:-}'
     networks:
       - dagster_network
     logging: *default-logging

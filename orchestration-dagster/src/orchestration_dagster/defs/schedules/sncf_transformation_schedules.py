@@ -29,3 +29,11 @@ sncf_ml_features_schedule = dg.build_schedule_from_partitioned_job(
     hour_of_day=4,
     minute_of_hour=0,
 )
+
+# Every Monday after the 04:00 features: the dataset includes the trains of
+# Sunday, built at 03:00.
+sncf_ml_training_schedule = dg.ScheduleDefinition(
+    job=sncf_transformations_jobs.sncf_ml_training_job,
+    cron_schedule="0 5 * * 1",
+    execution_timezone="Europe/Paris",
+)
