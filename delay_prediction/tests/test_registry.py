@@ -7,10 +7,12 @@ from delay_prediction.models import (
     build_models,
     evaluate_model,
     features,
+    promote_if_better,
+    save_best_model,
     with_threshold,
 )
-from delay_prediction.registry import champion_f1, promote, promotion_refusal
-from test_models import trains_with_nulls
+from delay_prediction.registry import champion_metrics, promote, promotion_refusal
+from test_models import evaluation_in_new_run, trains_with_nulls
 
 MODEL_NAME = "delay_prediction"
 
@@ -56,8 +58,45 @@ def test_promoted_model_becomes_the_champion():
             skops_trusted_types=["numpy.dtype"],
         ).model_uri
 
-    assert champion_f1(MODEL_NAME, features(valid), valid[TARGET]) is None
+    assert champion_metrics(MODEL_NAME, features(valid), valid[TARGET]) is None
     assert promote(model_uri, MODEL_NAME) == "1"
-    assert champion_f1(MODEL_NAME, features(valid), valid[TARGET]) == pytest.approx(
-        metrics["f1"]
+    assert champion_metrics(
+        MODEL_NAME, features(valid), valid[TARGET]
+    ) == pytest.approx(metrics)
+
+
+@pytest.mark.usefixtures("local_mlflow")
+def test_champion_is_logged_as_a_run_on_the_new_validation_set(monkeypatch):
+    """The precision, recall and F1 of the champion on valid are a run tagged purpose=champion."""
+    monkeypatch.setenv("MLFLOW_REGISTERED_MODEL_NAME", MODEL_NAME)
+    # The test trains have no date, needed by the baselines
+    monkeypatch.setattr(
+        "delay_prediction.models.evaluate_baselines",
+        lambda train, valid: {"baseline": ({"f1": 0.0}, {})},
+    )
+    splits = {
+        "train": trains_with_nulls(200, seed=0),
+        "valid": trains_with_nulls(100, seed=1),
+        "test": trains_with_nulls(100, seed=2),
+    }
+    first = evaluation_in_new_run(
+        "logistic_regression", splits["train"], splits["valid"]
+    )
+    promote(
+        save_best_model([first], splits["test"], "2026-11-25_145528")["model_uri"],
+        MODEL_NAME,
+    )
+    challenger = evaluation_in_new_run(
+        "logistic_regression", splits["train"], splits["valid"]
+    )
+    challenger = save_best_model([challenger], splits["test"], "2026-11-26_124042")
+
+    promote_if_better(challenger, splits, "2026-11-26_124042")
+
+    [run] = mlflow.search_runs(
+        filter_string="tags.purpose = 'champion'", output_format="list"
+    )
+    assert run.data.tags["dataset_version"] == "2026-11-26_124042"
+    assert run.data.metrics == pytest.approx(
+        champion_metrics(MODEL_NAME, features(splits["valid"]), splits["valid"][TARGET])
     )

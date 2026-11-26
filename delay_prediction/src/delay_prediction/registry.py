@@ -19,13 +19,16 @@ CHAMPION_ALIAS = "champion"
 MAX_TEST_F1_DROP = 0.05
 
 
-def champion_f1(model_name: str, valid_features, valid_target) -> float | None:
-    """Return the F1 of the current champion on the validation set, None without champion."""
+def champion_metrics(model_name: str, valid_features, valid_target) -> dict | None:
+    """Return the precision, recall and F1 of the current champion on the validation set.
+
+    None without champion.
+    """
     try:
         champion = mlflow.sklearn.load_model(f"models:/{model_name}@{CHAMPION_ALIAS}")
     except MlflowException:
         return None
-    return classification_metrics(valid_target, champion.predict(valid_features))["f1"]
+    return classification_metrics(valid_target, champion.predict(valid_features))
 
 
 def promotion_refusal(

@@ -49,7 +49,7 @@ The best model then becomes the champion in the Unity Catalog registry (`MLFLOW_
 - it beats the current champion, measured again on the same validation set;
 - its test F1 is not more than 0.05 below its validation F1.
 
-Only a promoted model becomes a new version of the registered model. The decision is the tag `promotion` of its run.
+Only a promoted model becomes a new version of the registered model. The decision is the tag `promotion` of its run. The current champion, measured again on the validation set, is logged as a run `champion` (tag `purpose=champion`) next to the model runs.
 
 The Dagster job `sncf_ml_training_job` runs this loop every Monday at 05:00: a new dataset version, then the models trained on it. `MLFLOW_REGISTERED_MODEL_NAME` must be in the `.env` passed to docker-compose. XGBoost needs OpenMP on macOS (`brew install libomp`).
 

@@ -18,7 +18,8 @@ set (metrics test_precision, test_recall, test_f1).
 
 This model is then promoted to champion in the Unity Catalog registry when it
 beats the best baseline and the current champion (see registry.py). The
-decision is the tag promotion of its run.
+decision is the tag promotion of its run. The current champion, measured again
+on the validation set, is logged as a run tagged purpose=champion.
 
     make train-models
 """
@@ -50,7 +51,7 @@ from delay_prediction.datasets import (
     log_dataset_inputs,
 )
 from delay_prediction.metrics import best_f1_threshold, classification_metrics
-from delay_prediction.registry import champion_f1, promote, promotion_refusal
+from delay_prediction.registry import champion_metrics, promote, promotion_refusal
 
 
 def median_imputer() -> SimpleImputer:
@@ -169,16 +170,27 @@ def save_best_model(evaluations: list[dict], test: pl.DataFrame, version: str) -
     return best | best_test_metrics | {"model_uri": model_info.model_uri}
 
 
-def promote_if_better(best: dict, splits: dict) -> str:
+def log_champion_run(metrics: dict, version: str) -> None:
+    """Log the metrics of the current champion on the validation set as a MLflow run."""
+    with mlflow.start_run(run_name="champion"):
+        mlflow.set_tags({"purpose": "champion", "dataset_version": version})
+        mlflow.log_metrics(metrics)
+
+
+def promote_if_better(best: dict, splits: dict, version: str) -> str:
     """Promote the best model to champion when it deserves it; return the decision.
 
-    The decision is also a tag of its run.
+    The decision is a tag of its run. The current champion, measured again on
+    the same validation set, is a run of the experiment.
     """
     model_name = os.environ["MLFLOW_REGISTERED_MODEL_NAME"]
     baselines = evaluate_baselines(splits["train"], splits["valid"])
     best_baseline_f1 = max(metrics["f1"] for metrics, _ in baselines.values())
     valid = splits["valid"]
-    current_champion_f1 = champion_f1(model_name, features(valid), valid[TARGET])
+    current_champion = champion_metrics(model_name, features(valid), valid[TARGET])
+    if current_champion is not None:
+        log_champion_run(current_champion, version)
+    current_champion_f1 = None if current_champion is None else current_champion["f1"]
     refusal = promotion_refusal(best, best_baseline_f1, current_champion_f1)
     if refusal is None:
         decision = (
@@ -222,7 +234,7 @@ def train_and_promote(splits: dict, version: str):
             | {"run_id": run_id, "trained_model": model}
         )
     best = save_best_model(evaluations, splits["test"], version)
-    decision = promote_if_better(best, splits)
+    decision = promote_if_better(best, splits, version)
     return results_table(evaluations, best), best, decision
 
 
