@@ -57,6 +57,8 @@ services:
       FSSPEC_S3_SECRET: '${S3_SECRET_ACCESS_KEY}'
       FSSPEC_S3_ENDPOINT_URL: '${S3_API}'
       FSSPEC_S3_CLIENT_KWARGS: '{"region_name": "${REGION_NAME}"}'
+      # Same as connect_to_s3: the provider rejects the default checksums of botocore
+      FSSPEC_S3_CONFIG_KWARGS: '{"request_checksum_calculation": "when_required", "response_checksum_validation": "when_required"}'
     networks:
       - dagster_network
     logging: *default-logging
@@ -156,6 +158,8 @@ services:
       FSSPEC_S3_SECRET: '${S3_SECRET_ACCESS_KEY}'
       FSSPEC_S3_ENDPOINT_URL: '${S3_API}'
       FSSPEC_S3_CLIENT_KWARGS: '{"region_name": "${REGION_NAME}"}'
+      # Same as connect_to_s3: the provider rejects the default checksums of botocore
+      FSSPEC_S3_CONFIG_KWARGS: '{"request_checksum_calculation": "when_required", "response_checksum_validation": "when_required"}'
     networks:
       - dagster_network
     logging: *default-logging
